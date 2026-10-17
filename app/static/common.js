@@ -26,7 +26,10 @@ export function setStatus(element, message, isError = false) {
 export async function errorMessage(response) {
   try {
     const body = await response.json();
-    return typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+    if (typeof body.detail === "string") return body.detail;
+    // FastAPI validation errors: [{ loc: ["body", "field"], msg: "..." }, ...]
+    if (Array.isArray(body.detail)) return body.detail.map((e) => `${e.loc?.at(-1)}: ${e.msg}`).join(" · ");
+    return JSON.stringify(body.detail);
   } catch {
     return `HTTP ${response.status}`;
   }

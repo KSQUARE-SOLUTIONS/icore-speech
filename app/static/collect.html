@@ -153,6 +153,9 @@
     if (recorder.isRecording) return recorder.stop();
     if (!byId("consent").checked) return setStatus(recordStatus, "لازم توافق على التسجيل الأول.", true);
     if (!speaker()) return setStatus(recordStatus, "اكتب اسم المتحدث الأول.", true);
+    if (mode === "prompt" && !currentPrompt) {
+      return setStatus(recordStatus, "الجمل الجاهزة خلصت. اتنقل لـ \"كلام حر\" لو عايز تسجّل أكتر.", true);
+    }
     try {
       clearPendingClip();
       await recorder.start();
@@ -166,6 +169,7 @@
 
   saveButton.addEventListener("click", async () => {
     if (!pendingClip) return;
+    if (!referenceInput.value.trim()) return setStatus(recordStatus, "اكتب النص اللي اتقال قبل الحفظ.", true);
     const form = new FormData();
     form.append("file", pendingClip.blob, pendingClip.filename);
     form.append("speaker", speaker());
