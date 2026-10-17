@@ -46,7 +46,11 @@ class FakeTtsEngine:
     def voices(self):
         return [Voice(id="fake-ar", language="ar", engine=self.name)]
 
+    def __init__(self):
+        self.texts = []
+
     def synthesize(self, text, language, voice=None):
+        self.texts.append(text)
         if voice not in (None, "fake-ar"):
             raise UnknownVoiceError(f"No voice '{voice}'.")
         return Speech(
@@ -86,10 +90,15 @@ def stt() -> FakeSttEngine:
 
 
 @pytest.fixture
-def client(settings, stt):
+def tts() -> FakeTtsEngine:
+    return FakeTtsEngine()
+
+
+@pytest.fixture
+def client(settings, stt, tts):
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_stt] = lambda: stt
-    app.dependency_overrides[get_tts] = lambda: FakeTtsEngine()
+    app.dependency_overrides[get_tts] = lambda: tts
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

@@ -109,6 +109,14 @@ def test_speak_mp3(client, auth):
     assert len(response.content) > 100
 
 
+def test_speak_respells_arabic_for_egyptian_pronunciation(client, auth, tts):
+    client.post("/v1/speak", headers=auth, json={"text": "زحمة موت"})
+    client.post("/v1/speak", headers=auth, json={"text": "زحمة موت", "egyptian_spelling": False})
+    client.post("/v1/speak", headers=auth, json={"text": "نقدر", "qaf_as_hamza": True})
+    client.post("/v1/speak", headers=auth, json={"text": "Quality time", "language": "en"})
+    assert tts.texts == ["زحمه موت", "زحمة موت", "نأدر", "Quality time"]
+
+
 def test_speak_rejects_long_text(client, auth):
     response = client.post("/v1/speak", headers=auth, json={"text": "ا" * 51})
     assert response.status_code == 413

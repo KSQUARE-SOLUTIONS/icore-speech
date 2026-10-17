@@ -16,7 +16,14 @@ from pathlib import Path
 
 from app.audio.encoding import encode
 from app.config import get_settings
+from app.text.egyptian_spelling import egyptian_spelling
 from app.tts.chatterbox_engine import ChatterboxEngine
+
+SPELLINGS = {
+    "raw": lambda text: text,
+    "taa": lambda text: egyptian_spelling(text),
+    "taa-qaf": lambda text: egyptian_spelling(text, qaf_as_hamza=True),
+}
 
 SENTENCES = [
     "أهلاً بيك في آي كور سوفت. إزاي نقدر نساعدك النهارده؟",
@@ -29,6 +36,8 @@ def main() -> None:
     parser.add_argument("--checkpoints", nargs="+", default=["base"])
     parser.add_argument("--voices", nargs="+", default=["default"])
     parser.add_argument("--texts", nargs="+", default=SENTENCES, help="sentences to render (default: built-in pair)")
+    parser.add_argument("--spellings", nargs="+", default=["raw"], choices=list(SPELLINGS),
+                        help="text variants: raw, taa (Egyptian taa marbuta), taa-qaf (also qaf as hamza)")
     args = parser.parse_args()
 
     settings = get_settings()
@@ -41,12 +50,15 @@ def main() -> None:
         engine = ChatterboxEngine(settings.model_copy(update={"chatterbox_t3_repo": repo}))
         label = checkpoint.split("/")[-1]
         for voice in args.voices:
-            for index, sentence in enumerate(args.texts, start=1):
-                speech = engine.synthesize(sentence, "ar", voice)
-                path = out_dir / f"{label}__{voice}__{index}.mp3"
-                path.write_bytes(encode(speech.audio, speech.sample_rate, "mp3"))
-                rows.append({"checkpoint": checkpoint, "voice": voice, "sentence": sentence, "file": path.name,
-                             "audio_seconds": speech.seconds, "processing_ms": speech.processing_ms})
+            for spelling in args.spellings:
+                for index, sentence in enumerate(args.texts, start=1):
+                    spoken = SPELLINGS[spelling](sentence)
+                    speech = engine.synthesize(spoken, "ar", voice)
+                    path = out_dir / f"{label}__{voice}__{spelling}__{index}.mp3"
+                    path.write_bytes(encode(speech.audio, speech.sample_rate, "mp3"))
+                    rows.append({"checkpoint": checkpoint, "voice": voice, "spelling": spelling, "sentence": spoken,
+                                 "file": path.name, "audio_seconds": speech.seconds,
+                                 "processing_ms": speech.processing_ms})
                 print(f"{path.name}: {speech.seconds}s audio in {speech.processing_ms / 1000:.0f}s", flush=True)
         del engine
         gc.collect()

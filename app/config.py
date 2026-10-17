@@ -34,6 +34,10 @@ class Settings(BaseSettings):
 
     tts_engine: Literal["piper", "chatterbox"] = "piper"
     tts_default_language: str = "ar"
+    # Respell Arabic text before TTS so MSA-trained models say it the Egyptian way
+    # (app/text/egyptian_spelling.py). Requests can override both per call.
+    tts_egyptian_spelling: bool = True
+    tts_qaf_as_hamza: bool = False
     piper_voices: dict[str, str] = {
         "ar": "ar_JO-kareem-medium",
         "en": "en_US-lessac-medium",
