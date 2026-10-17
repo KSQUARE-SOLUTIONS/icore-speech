@@ -1,11 +1,10 @@
 """Listening test for VoiceTut-TTS (OmniVoice fine-tuned on ~380 h of Egyptian podcasts).
 
-Runs in its own environment (experiments/voicetut/.venv) because OmniVoice pins its own
-torch/transformers. Clones a voice from voices/<speaker>.wav + .txt and renders the same
-colloquial sentences used for the Chatterbox comparison.
+Clones a voice from voices/<speaker>.wav + .txt and renders the same colloquial sentences used for
+the Chatterbox comparison. Needs the `voicetut` extra (uv sync --extra voicetut).
 
 Usage (from the repo root):
-    experiments/voicetut/.venv/bin/python experiments/voicetut/generate.py karim
+    HF_ENABLE_PARALLEL_LOADING=false uv run python experiments/voicetut/generate.py karim --device mps
 """
 
 import argparse
