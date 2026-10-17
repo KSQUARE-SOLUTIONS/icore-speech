@@ -48,3 +48,16 @@ def test_rejects_unsupported_language(engine):
 
 def test_skips_egyptian_respelling():
     assert VoiceTutEngine.needs_egyptian_respelling is False
+
+
+def test_diacritised_words_reach_the_model_untouched():
+    normalization = pytest.importorskip("voicetut_tts.normalization")
+    from app.tts.voicetut_engine import keep_user_diacritics
+
+    normalize = keep_user_diacritics(normalization.ArabicNormalizer().normalize)
+    # Shadda before م must not be read as the "م" (p.m.) abbreviation.
+    assert normalize("لازم نعلّم الولاد يِحْتِرْمُوا").endswith("نعلّم الولاد يِحْتِرْمُوا")
+    assert "بحبِّك" in normalize("بحبِّك قوي")
+    # Undiacritised words still get VoiceTut's own handling.
+    assert "مساءً" in normalize("الساعة 5 م")
+    assert normalize("ازيك") == "إِزَّيَّك"

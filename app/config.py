@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     voicetut_repo: str = "mohammedaly22/VoiceTut-TTS"
     voicetut_device: Literal["cpu", "mps", "cuda"] = "mps"
     voicetut_num_steps: int = 32
+    # Pass diacritics written in the text (بحبكِ, نعلِّم) through to the model instead of stripping them.
+    voicetut_keep_user_diacritics: bool = True
     # A built-in speaker (e.g. "mohamed", "asmaa") or a cloned voice id from voices_dir.
     voicetut_default_voice: str = "mohamed"
     # Reference recordings for cloned voices: <voices_dir>/<voice_id>.wav (about 10 s each).

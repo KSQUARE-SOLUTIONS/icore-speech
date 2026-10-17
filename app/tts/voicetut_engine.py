@@ -15,6 +15,35 @@ VOICE_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{1,31}$")
 SKIPPED_FILES = ["optimizer.bin", "random_states_*", "*.pkl", "scheduler.bin"]  # training state, not needed
 
 
+_DIACRITISED_WORD = re.compile(r"\S*[\u064B-\u0652]\S*")
+_PLACEHOLDER_BASE = 0xE000  # Unicode private use area: no normaliser rule touches these
+
+
+def keep_user_diacritics(normalize):
+    """Wrap VoiceTut's normaliser so words the caller diacritised reach the model untouched.
+
+    Undiacritised Egyptian is ambiguous: بحبك is "bahebbak" to a man and "bahebbik" to a woman,
+    علم can be "3ilm" or "3allim". VoiceTut strips every diacritic the caller wrote and re-adds
+    them only for ~80 words in its own table. Simply not stripping them is not enough: its
+    abbreviation rules then see a lone "م" after a diacritic and expand it to "مساءً". So each
+    diacritised word is swapped for a private-use placeholder, the rest of the text is normalised
+    as usual (numbers, dates, its word table), and the words are put back."""
+
+    def normalize_keeping_diacritics(text: str) -> str:
+        words: list[str] = []
+
+        def stash(match: re.Match) -> str:
+            words.append(match.group(0))
+            return chr(_PLACEHOLDER_BASE + len(words) - 1)
+
+        normalized = normalize(_DIACRITISED_WORD.sub(stash, text))
+        for index, word in enumerate(words):
+            normalized = normalized.replace(chr(_PLACEHOLDER_BASE + index), word)
+        return normalized
+
+    return normalize_keeping_diacritics
+
+
 class VoiceTutEngine:
     """VoiceTut-TTS: OmniVoice fine-tuned on ~380 h of Egyptian podcast speech (Apache-2.0 weights;
     the training audio came from YouTube podcasts, so review data rights before commercial use).
@@ -74,6 +103,8 @@ class VoiceTutEngine:
                 tts.model.audio_tokenizer = tokenizer
             else:
                 tts = VoiceTutTTS.from_pretrained(str(self._model_dir), device=device)
+            if self._settings.voicetut_keep_user_diacritics:
+                tts.normalizer.normalize = keep_user_diacritics(tts.normalizer.normalize)
             self._tts = tts
 
     def synthesize(self, text: str, language: str, voice: str | None = None) -> Speech:
