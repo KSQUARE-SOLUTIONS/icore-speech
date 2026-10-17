@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 import re
@@ -42,6 +43,27 @@ def keep_user_diacritics(normalize):
         return normalized
 
     return normalize_keeping_diacritics
+
+
+QAF = "\u0642"
+
+
+def pronunciation_overrides(normalizer, overrides_file: Path) -> dict[str, str]:
+    """Words VoiceTut should receive as written rather than through its diacritics table.
+
+    A listening test showed the model already says qaf the Egyptian way (قوي -> "awi") when the
+    word arrives bare, while VoiceTut's table forced a q (قَوِي). So every table entry containing
+    qaf is passed through bare. Then the lines of `overrides_file` (word,spoken) are applied, so
+    anyone can fix a mispronounced word without touching code."""
+    overrides = {word: word for word in getattr(normalizer, "_diacritics", {}) if QAF in word}
+    if overrides_file.is_file():
+        lines = [line for line in overrides_file.read_text(encoding="utf-8").splitlines()
+                 if line.strip() and not line.lstrip().startswith("#")]
+        for row in csv.DictReader(lines):
+            word, spoken = (row.get("word") or "").strip(), (row.get("spoken") or "").strip()
+            if word and spoken:
+                overrides[word] = spoken
+    return overrides
 
 
 class VoiceTutEngine:
@@ -103,6 +125,7 @@ class VoiceTutEngine:
                 tts.model.audio_tokenizer = tokenizer
             else:
                 tts = VoiceTutTTS.from_pretrained(str(self._model_dir), device=device)
+            tts.normalizer.add_lexicon(pronunciation_overrides(tts.normalizer, self._settings.voicetut_overrides_file))
             if self._settings.voicetut_keep_user_diacritics:
                 tts.normalizer.normalize = keep_user_diacritics(tts.normalizer.normalize)
             self._tts = tts

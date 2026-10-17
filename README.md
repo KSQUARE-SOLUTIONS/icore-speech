@@ -41,6 +41,12 @@ locally until we pick a GPU option (a GPU server, or on-demand serverless GPU fo
 can be installed at a time. VoiceTut's weights are Apache-2.0, but it was trained on YouTube podcast
 audio: review the data rights before selling it to clients.
 
+**Pronunciation fixes.** Write diacritics only on the ambiguous letter (بحبِّك to a woman,
+بحبَّك to a man, نعلِّم); they now reach the model. If a word comes out wrong, add a `word,spoken`
+line to `app/text/lexicons/voicetut_overrides.csv` and restart. VoiceTut's own table forced a q
+in words like قوي; those are now passed bare, which a listening test showed the model says the
+Egyptian way.
+
 **Cloned voices.** VoiceTut and Chatterbox can speak in a recorded person's voice. Build a
 reference from that speaker's `/collect` clips (only with their consent):
 

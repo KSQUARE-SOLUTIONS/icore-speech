@@ -61,3 +61,27 @@ def test_diacritised_words_reach_the_model_untouched():
     # Undiacritised words still get VoiceTut's own handling.
     assert "مساءً" in normalize("الساعة 5 م")
     assert normalize("ازيك") == "إِزَّيَّك"
+
+
+class FakeNormalizer:
+    _diacritics = {"قوي": "قَوِي", "بقى": "بَقَى", "ازيك": "إِزَّيَّك"}
+
+
+def test_overrides_pass_qaf_words_bare_and_read_the_file(tmp_path):
+    from app.tts.voicetut_engine import pronunciation_overrides
+
+    overrides_file = tmp_path / "overrides.csv"
+    overrides_file.write_text("# comment\nword,spoken\nقهوة,أهوة\n\n", encoding="utf-8")
+    assert pronunciation_overrides(FakeNormalizer(), overrides_file) == {"قوي": "قوي", "بقى": "بقى", "قهوة": "أهوة"}
+    assert pronunciation_overrides(FakeNormalizer(), tmp_path / "missing.csv") == {"قوي": "قوي", "بقى": "بقى"}
+
+
+def test_real_normaliser_keeps_qaf_words_bare():
+    normalization = pytest.importorskip("voicetut_tts.normalization")
+    from app.config import Settings
+    from app.tts.voicetut_engine import pronunciation_overrides
+
+    normalizer = normalization.ArabicNormalizer()
+    normalizer.add_lexicon(pronunciation_overrides(normalizer, Settings(_env_file=None).voicetut_overrides_file))
+    assert "قوي" in normalizer.normalize("حلو قوي").split()
+    assert normalizer.normalize("ازيك") == "إِزَّيَّك"  # other table words keep VoiceTut's form

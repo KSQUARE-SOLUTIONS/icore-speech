@@ -1,0 +1,9 @@
+# How VoiceTut should receive a word, applied before its own diacritics table.
+# word = the word as typed (exact match, Arabic letters only); spoken = what the model gets.
+# Writing the word as itself (no diacritics) lets the model use the Egyptian pronunciation it
+# learned, instead of VoiceTut's table. Add a line whenever a word comes out wrong, then restart
+# with `icore-speech stop` and `icore-speech`.
+#
+# Words in VoiceTut's table that contain ق are passed through bare automatically (its table
+# forced a q sound, e.g. قوي -> قَوِي), so they do not need a line here.
+word,spoken
