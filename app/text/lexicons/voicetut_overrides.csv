@@ -7,3 +7,7 @@
 # Words in VoiceTut's table that contain ق are passed through bare automatically (its table
 # forced a q sound, e.g. قوي -> قَوِي), so they do not need a line here.
 word,spoken
+# Common chat spellings with ة where Egyptians say ه: the model reads ة as "a" (لية -> "leya").
+لية,ليه
+اية,ايه
+كدة,كده
