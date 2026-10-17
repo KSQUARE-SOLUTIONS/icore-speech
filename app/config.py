@@ -39,6 +39,9 @@ class Settings(BaseSettings):
         "en": "en_US-lessac-medium",
     }
     chatterbox_device: Literal["cpu", "mps", "cuda"] = "mps"
+    # Hugging Face repo whose t3_mtl23ls_v2.safetensors replaces the base text-to-speech weights,
+    # e.g. an Egyptian fine-tune such as "NAMAA-Space/NAMAA-Egyptian-TTS". Empty = base Chatterbox.
+    chatterbox_t3_repo: str = ""
     # Reference recordings for cloned voices: <voices_dir>/<voice_id>.wav (about 10 s each).
     voices_dir: Path = PROJECT_ROOT / "voices"
 

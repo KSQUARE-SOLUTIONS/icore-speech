@@ -54,7 +54,10 @@ class ChatterboxEngine:
                 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
                 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
-                model = ChatterboxMultilingualTTS.from_pretrained(device=self._settings.chatterbox_device)
+                device = self._settings.chatterbox_device
+                model = ChatterboxMultilingualTTS.from_pretrained(device=device)
+                if self._settings.chatterbox_t3_repo:
+                    self._load_t3_weights(model, self._settings.chatterbox_t3_repo, device)
                 self._conditionals[DEFAULT_VOICE] = model.conds
                 self._model = model
 
@@ -82,6 +85,17 @@ class ChatterboxEngine:
             engine=self.name,
             processing_ms=int((time.perf_counter() - started) * 1000),
         )
+
+    @staticmethod
+    def _load_t3_weights(model, repo_id: str, device: str) -> None:
+        """Swap in fine-tuned text-to-speech-token weights (the part that decides pronunciation);
+        the vocoder and speaker encoder stay the base model's."""
+        from huggingface_hub import hf_hub_download
+        from safetensors.torch import load_file
+
+        path = hf_hub_download(repo_id, "t3_mtl23ls_v2.safetensors")
+        model.t3.load_state_dict(load_file(path, device=device))
+        model.t3.to(device).eval()
 
     @property
     def _voices_dir(self) -> Path:
