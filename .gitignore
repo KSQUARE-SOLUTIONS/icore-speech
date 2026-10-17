@@ -2,11 +2,11 @@
 __pycache__/
 *.pyc
 .env
-models/
+/models/
 evaluation/audio/
 evaluation/results/
 .pytest_cache/
 .DS_Store
 evaluation/manifest.csv
 .claude/
-voices/
+/voices/
