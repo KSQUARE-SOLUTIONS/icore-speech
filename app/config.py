@@ -32,12 +32,12 @@ class Settings(BaseSettings):
     # colloquial spelling; cut normalised WER 30% -> 23% on large-v3. Empty string disables it.
     stt_dialect_prompt: str = "إزيك، عامل إيه النهارده؟ أنا كنت عايز أسأل على حاجة لو سمحت."
 
-    tts_engine: Literal["piper", "chatterbox"] = "piper"
+    tts_engine: Literal["piper", "chatterbox"] = "chatterbox"
     tts_default_language: str = "ar"
     # Respell Arabic text before TTS so MSA-trained models say it the Egyptian way
     # (app/text/egyptian_spelling.py). Requests can override both per call.
     tts_egyptian_spelling: bool = True
-    tts_qaf_as_hamza: bool = False
+    tts_qaf_as_hamza: bool = True
     piper_voices: dict[str, str] = {
         "ar": "ar_JO-kareem-medium",
         "en": "en_US-lessac-medium",
@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     chatterbox_device: Literal["cpu", "mps", "cuda"] = "mps"
     # Hugging Face repo whose t3_mtl23ls_v2.safetensors replaces the base text-to-speech weights,
     # e.g. an Egyptian fine-tune such as "NAMAA-Space/NAMAA-Egyptian-TTS". Empty = base Chatterbox.
-    chatterbox_t3_repo: str = ""
+    # Listening test (Oct 2026): NAMAA + Egyptian respelling sounded most Egyptian of base/NAMAA/oddadmix.
+    chatterbox_t3_repo: str = "NAMAA-Space/NAMAA-Egyptian-TTS"
     # Reference recordings for cloned voices: <voices_dir>/<voice_id>.wav (about 10 s each).
     voices_dir: Path = PROJECT_ROOT / "voices"
 
