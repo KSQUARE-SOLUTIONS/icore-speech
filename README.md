@@ -27,6 +27,10 @@ its audio tokenizer ≈ 0.8 GB).
 | `chatterbox` (+ `ICORE_CHATTERBOX_T3_REPO=NAMAA-Space/NAMAA-Egyptian-TTS`) | `uv sync --extra chatterbox` | Garbled colloquial words even with respelling | ≈ 40–60 s |
 | `piper` | base install | Jordanian/MSA voice, robotic | < 1 s |
 
+**VoiceTut needs a GPU.** On the M1 Pro CPU alone (no MPS) one 4 s sentence took 171 s, so a
+CPU-only server can run speech-to-text but not this voice. Deployment is on hold (Oct 2026): run
+locally until we pick a GPU option (a GPU server, or on-demand serverless GPU for TTS only).
+
 `voicetut` and `chatterbox` need different torch/transformers versions, so only one of the two extras
 can be installed at a time. VoiceTut's weights are Apache-2.0, but it was trained on YouTube podcast
 audio: review the data rights before selling it to clients.
