@@ -1,4 +1,4 @@
-// Helpers shared by the local pages: token storage, API errors, status lines, microphone recording.
+// Helpers shared by the local pages: token storage, API calls, status lines, microphone recording.
 
 const TOKEN_STORAGE_KEY = "icore-speech-token";
 
@@ -21,6 +21,23 @@ export function bindTokenInput(input) {
 export function setStatus(element, message, isError = false) {
   element.textContent = message;
   element.classList.toggle("error", isError);
+  element.classList.remove("busy");
+}
+
+// Shows "message · 7 ث" ticking every second until the returned stop() is called.
+export function startBusyStatus(element, message) {
+  const started = performance.now();
+  element.classList.remove("error");
+  element.classList.add("busy");
+  const render = () => {
+    element.textContent = `${message} ${Math.round((performance.now() - started) / 1000)} ث`;
+  };
+  render();
+  const timer = setInterval(render, 1000);
+  return () => {
+    clearInterval(timer);
+    element.classList.remove("busy");
+  };
 }
 
 export async function errorMessage(response) {
@@ -31,36 +48,73 @@ export async function errorMessage(response) {
     if (Array.isArray(body.detail)) return body.detail.map((e) => `${e.loc?.at(-1)}: ${e.msg}`).join(" · ");
     return JSON.stringify(body.detail);
   } catch {
-    return `HTTP ${response.status}`;
+    return response.status === 401 ? "التوكن غلط أو ناقص: حطه من الإعدادات." : `HTTP ${response.status}`;
   }
 }
 
-// Records from the microphone. `onStop` receives { blob, filename } when recording ends.
+export function formatClock(seconds) {
+  const whole = Math.floor(seconds);
+  return `${String(Math.floor(whole / 60)).padStart(2, "0")}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+// Records from the microphone. `onStop` receives { blob, filename, seconds } when recording ends;
+// `onLevel` (optional) receives the input loudness 0..1 about 30 times a second while recording.
 export class MicrophoneRecorder {
-  constructor(onStop) {
+  constructor(onStop, onLevel = null) {
     this.onStop = onStop;
+    this.onLevel = onLevel;
     this.recorder = null;
+    this.startedAt = 0;
   }
 
   get isRecording() {
     return this.recorder?.state === "recording";
   }
 
+  get elapsedSeconds() {
+    return this.isRecording ? (performance.now() - this.startedAt) / 1000 : 0;
+  }
+
   async start() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const chunks = [];
+    const stopMeter = this.onLevel ? this.#meter(stream) : () => {};
     this.recorder = new MediaRecorder(stream);
     this.recorder.addEventListener("dataavailable", (event) => chunks.push(event.data));
     this.recorder.addEventListener("stop", () => {
+      stopMeter();
       stream.getTracks().forEach((track) => track.stop());
       const type = this.recorder.mimeType || "audio/webm";
       const extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
-      this.onStop({ blob: new Blob(chunks, { type }), filename: `recording.${extension}` });
+      const seconds = (performance.now() - this.startedAt) / 1000;
+      this.onStop({ blob: new Blob(chunks, { type }), filename: `recording.${extension}`, seconds });
     });
+    this.startedAt = performance.now();
     this.recorder.start();
   }
 
   stop() {
     if (this.isRecording) this.recorder.stop();
+  }
+
+  #meter(stream) {
+    const context = new AudioContext();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    context.createMediaStreamSource(stream).connect(analyser);
+    const samples = new Float32Array(analyser.fftSize);
+    let frame = 0;
+    const tick = () => {
+      analyser.getFloatTimeDomainData(samples);
+      const rms = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
+      this.onLevel(Math.min(1, rms * 4));
+      frame = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => {
+      cancelAnimationFrame(frame);
+      this.onLevel(0);
+      context.close();
+    };
   }
 }

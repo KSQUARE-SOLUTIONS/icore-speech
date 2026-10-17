@@ -12,10 +12,16 @@ The same code runs on a Mac and on a server; only `.env` changes. Plan and decis
 ```bash
 uv sync --extra voicetut     # Python 3.12 + dependencies + the default TTS engine
 cp .env.example .env         # then set ICORE_API_TOKEN
-uv run uvicorn app.main:app --port 8000
+bin/install-command          # once: adds the `icore-speech` command to ~/.local/bin
+icore-speech                 # starts the server and opens the page (Ctrl+C stops it)
 ```
 
-Open http://localhost:8000, paste the token, then record or upload audio, or type text to hear it.
+`icore-speech status` shows what is loaded, `icore-speech stop` stops a server started elsewhere,
+`icore-speech --no-open` starts without opening the browser.
+
+The page has three tabs: **سماع** (record or drop a file → text), **نطق** (text → speech in any voice)
+and **الأصوات** (clone a new voice from a 10–30 s recording, list and delete cloned voices). Paste the
+token once under الإعدادات. Use Chrome or Safari for the microphone.
 Models download on first use into `models/` (Whisper `large-v3` ≈ 3.1 GB, VoiceTut ≈ 2.5 GB plus
 its audio tokenizer ≈ 0.8 GB).
 
@@ -54,7 +60,9 @@ Flutter or web client: apps call Laravel, Laravel calls this service on the inte
 | --- | --- | --- |
 | `POST /v1/transcribe` | multipart: `file`, `language` (`ar` default, `en`, `auto`), `domain` (optional, see `app/text/vocabularies/`), `timestamps` | JSON: `text`, `segments` (when asked), `language`, `audio_seconds`, `processing_ms`, `model_version` |
 | `POST /v1/speak` | JSON: `text`, `language` (`ar`/`en`), `voice` (optional), `format` (`mp3`/`wav`) | audio file; `X-Engine`, `X-Voice`, `X-Audio-Seconds`, `X-Processing-Ms` headers |
-| `GET /v1/voices` | – | voices of the active TTS engine |
+| `GET /v1/voices` | – | voices of the active TTS engine; `cloned: true` marks cloned ones |
+| `POST /v1/voices` | multipart: `file` (5–30 s), `name`, `consent=true`, `reference_text` (optional: transcribed if empty) | the new voice, usable immediately |
+| `DELETE /v1/voices/{id}` | – | removes a cloned voice |
 | `GET /health` | – | loaded models (no token needed) |
 
 ```bash

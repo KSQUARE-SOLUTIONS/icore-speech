@@ -15,12 +15,15 @@ from app.collection.router import require_collection_enabled
 from app.collection.router import router as collection_router
 from app.collection.store import ClipStore
 from app.config import PROJECT_ROOT, Settings, get_settings
+from app.dependencies import get_stt, get_tts
 from app.security.auth import require_token
 from app.stt.engine import SttEngine
 from app.text.egyptian_spelling import egyptian_spelling
 from app.text.vocabulary import UnknownDomainError, prompt_for
 from app.tts import build_tts_engine
 from app.tts.base import TtsEngine, UnknownVoiceError
+from app.voices.router import router as voices_router
+from app.voices.store import VoiceStore
 
 logger = logging.getLogger("icore_speech")
 LANGUAGE_CODE = re.compile(r"^[a-z]{2,3}$")
@@ -34,6 +37,7 @@ async def lifespan(app: FastAPI):
     app.state.stt = SttEngine(settings)
     app.state.tts = build_tts_engine(settings)
     app.state.clip_store = ClipStore(settings.evaluation_dir, settings.collection_sample_rate)
+    app.state.voice_store = VoiceStore(settings.voices_dir)
     if settings.preload_models:
         app.state.stt.load()
         app.state.tts.load()
@@ -42,15 +46,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Icore Speech Engine", version="0.1.0", lifespan=lifespan)
 app.include_router(collection_router)
+app.include_router(voices_router)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-
-def get_stt(request: Request) -> SttEngine:
-    return request.app.state.stt
-
-
-def get_tts(request: Request) -> TtsEngine:
-    return request.app.state.tts
 
 
 @app.exception_handler(AudioRejected)
@@ -106,11 +103,6 @@ def health(
         "stt": {"model": stt.model_name, "device": settings.stt_device, "loaded": stt.is_loaded},
         "tts": {"engine": tts.name, "loaded": tts.is_loaded},
     }
-
-
-@app.get("/v1/voices", dependencies=[Depends(require_token)])
-def list_voices(tts: Annotated[TtsEngine, Depends(get_tts)]) -> dict:
-    return {"engine": tts.name, "voices": [v.__dict__ for v in tts.voices()]}
 
 
 @app.post("/v1/transcribe", dependencies=[Depends(require_token)], response_model_exclude_none=True)

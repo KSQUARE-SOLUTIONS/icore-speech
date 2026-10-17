@@ -73,10 +73,13 @@ class ChatterboxEngine:
         with self._run_lock:
             # The model keeps one active voice (its "conditionals"); swap in the requested one,
             # computing it from the reference recording only the first time.
-            if voice_id not in self._conditionals:
+            # Key cloned voices by file time too, so a voice deleted and recreated under the same
+            # name is not served from the old cache.
+            cache_key = voice_id if reference is None else f"{voice_id}@{reference.stat().st_mtime_ns}"
+            if cache_key not in self._conditionals:
                 self._model.prepare_conditionals(str(reference))
-                self._conditionals[voice_id] = self._model.conds
-            self._model.conds = self._conditionals[voice_id]
+                self._conditionals[cache_key] = self._model.conds
+            self._model.conds = self._conditionals[cache_key]
             wav = self._model.generate(text, language_id=language)
         audio = wav.squeeze().detach().cpu().numpy().astype(np.float32)
         return Speech(

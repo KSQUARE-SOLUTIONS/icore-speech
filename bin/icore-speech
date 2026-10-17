@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Icore Speech Engine launcher.
+#
+#   icore-speech            start the server and open the web page (Ctrl+C stops it)
+#   icore-speech stop       stop a server started elsewhere on this port
+#   icore-speech status     show whether it is running and which models are loaded
+#   icore-speech --no-open  start without opening the browser
+#
+# Install once with: bin/install-command  (links this script into ~/.local/bin)
+
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+PORT="${ICORE_PORT:-8000}"
+URL="http://localhost:${PORT}"
+
+# Downloads over Hugging Face's Xet transfer stalled on flaky connections; plain HTTP resumes.
+export HF_HUB_DISABLE_XET=1
+# transformers' threaded weight loading segfaults with OmniVoice on Apple Silicon.
+export HF_ENABLE_PARALLEL_LOADING=false
+
+is_running() {
+  curl -fs --max-time 2 "${URL}/health" >/dev/null 2>&1
+}
+
+server_pids() {
+  lsof -ti "tcp:${PORT}" -sTCP:LISTEN 2>/dev/null || true
+}
+
+open_when_ready() {
+  for _ in $(seq 1 300); do
+    if is_running; then
+      echo "Ready: ${URL}"
+      open "${URL}"
+      return
+    fi
+    sleep 2
+  done
+  echo "Server did not answer on ${URL} after 10 minutes; check the log above." >&2
+}
+
+case "${1:-start}" in
+  stop)
+    pids="$(server_pids)"
+    if [[ -z "${pids}" ]]; then
+      echo "Not running on port ${PORT}."
+    else
+      kill ${pids} && echo "Stopped (port ${PORT})."
+    fi
+    ;;
+
+  status)
+    if is_running; then
+      echo "Running on ${URL}"
+      curl -fs "${URL}/health"
+      echo
+    else
+      echo "Not running on port ${PORT}."
+    fi
+    ;;
+
+  start | --no-open)
+    if is_running; then
+      echo "Already running on ${URL}"
+      [[ "${1:-}" == "--no-open" ]] || open "${URL}"
+      exit 0
+    fi
+    if [[ ! -f "${PROJECT_DIR}/.env" ]]; then
+      echo "Missing ${PROJECT_DIR}/.env: copy .env.example and set ICORE_API_TOKEN." >&2
+      exit 1
+    fi
+    cd "${PROJECT_DIR}"
+    echo "Starting Icore Speech on ${URL} (first start loads the models, about a minute)..."
+    [[ "${1:-}" == "--no-open" ]] || open_when_ready &
+    exec uv run --no-sync uvicorn app.main:app --host 127.0.0.1 --port "${PORT}"
+    ;;
+
+  -h | --help | help)
+    sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    ;;
+
+  *)
+    echo "Unknown command '$1'. Try: icore-speech --help" >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Link bin/icore-speech into ~/.local/bin so `icore-speech` works from any terminal.
+set -euo pipefail
+
+SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/icore-speech"
+TARGET_DIR="${HOME}/.local/bin"
+
+mkdir -p "${TARGET_DIR}"
+chmod +x "${SOURCE}"
+ln -sf "${SOURCE}" "${TARGET_DIR}/icore-speech"
+echo "Linked ${TARGET_DIR}/icore-speech -> ${SOURCE}"
+
+case ":${PATH}:" in
+  *":${TARGET_DIR}:"*) echo "Run: icore-speech" ;;
+  *) echo "Add ${TARGET_DIR} to your PATH (e.g. in ~/.zshrc), then run: icore-speech" ;;
+esac
