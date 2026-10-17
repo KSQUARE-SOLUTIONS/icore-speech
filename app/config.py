@@ -39,6 +39,8 @@ class Settings(BaseSettings):
         "en": "en_US-lessac-medium",
     }
     chatterbox_device: Literal["cpu", "mps", "cuda"] = "mps"
+    # Reference recordings for cloned voices: <voices_dir>/<voice_id>.wav (about 10 s each).
+    voices_dir: Path = PROJECT_ROOT / "voices"
 
     # Recording page that builds the Egyptian test set (and later a voice dataset).
     # Writes audio to disk, so keep it off on shared servers.

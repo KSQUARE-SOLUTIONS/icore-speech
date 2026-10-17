@@ -1,6 +1,8 @@
 import os
+import re
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -9,18 +11,24 @@ from app.tts.base import Speech, UnknownVoiceError, Voice
 
 SUPPORTED_LANGUAGES = {"ar": "Arabic", "en": "English"}
 DEFAULT_VOICE = "default"
+VOICE_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{1,31}$")
 
 
 class ChatterboxEngine:
     """Chatterbox Multilingual (MIT). Natural Arabic and English speech; wants a GPU
     (CUDA on a server, MPS on Apple Silicon) for usable speed. Output carries Resemble AI's
-    inaudible Perth watermark."""
+    inaudible Perth watermark.
+
+    Besides its built-in voice it can clone any voice from a ~10 s reference recording:
+    every `<voices_dir>/<id>.wav` becomes a voice called `<id>`. Only add recordings of people
+    who agreed to have their voice cloned."""
 
     name = "chatterbox"
 
     def __init__(self, settings: Settings):
         self._settings = settings
         self._model = None
+        self._conditionals: dict[str, object] = {}
         self._load_lock = threading.Lock()
         self._run_lock = threading.Lock()
 
@@ -29,8 +37,11 @@ class ChatterboxEngine:
         return self._model is not None
 
     def voices(self) -> list[Voice]:
+        cloned = sorted(p.stem for p in self._voices_dir.glob("*.wav") if VOICE_ID.match(p.stem))
         return [
-            Voice(id=DEFAULT_VOICE, language=code, engine=self.name, description=f"{label} built-in voice")
+            Voice(id=voice_id, language=code, engine=self.name,
+                  description=f"{label} built-in voice" if voice_id == DEFAULT_VOICE else f"Cloned from {voice_id}.wav")
+            for voice_id in [DEFAULT_VOICE, *cloned]
             for code, label in SUPPORTED_LANGUAGES.items()
         ]
 
@@ -43,23 +54,43 @@ class ChatterboxEngine:
                 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
                 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
-                self._model = ChatterboxMultilingualTTS.from_pretrained(device=self._settings.chatterbox_device)
+                model = ChatterboxMultilingualTTS.from_pretrained(device=self._settings.chatterbox_device)
+                self._conditionals[DEFAULT_VOICE] = model.conds
+                self._model = model
 
     def synthesize(self, text: str, language: str, voice: str | None = None) -> Speech:
         if language not in SUPPORTED_LANGUAGES:
             raise UnknownVoiceError(f"Chatterbox is not configured for language '{language}'.")
-        if voice not in (None, DEFAULT_VOICE):
-            raise UnknownVoiceError(f"No Chatterbox voice '{voice}'.")
+        voice_id = voice or DEFAULT_VOICE
+        reference = self._reference_path(voice_id)
 
         self.load()
         started = time.perf_counter()
         with self._run_lock:
+            # The model keeps one active voice (its "conditionals"); swap in the requested one,
+            # computing it from the reference recording only the first time.
+            if voice_id not in self._conditionals:
+                self._model.prepare_conditionals(str(reference))
+                self._conditionals[voice_id] = self._model.conds
+            self._model.conds = self._conditionals[voice_id]
             wav = self._model.generate(text, language_id=language)
         audio = wav.squeeze().detach().cpu().numpy().astype(np.float32)
         return Speech(
             audio=audio,
             sample_rate=self._model.sr,
-            voice=DEFAULT_VOICE,
+            voice=voice_id,
             engine=self.name,
             processing_ms=int((time.perf_counter() - started) * 1000),
         )
+
+    @property
+    def _voices_dir(self) -> Path:
+        return self._settings.voices_dir
+
+    def _reference_path(self, voice_id: str) -> Path | None:
+        if voice_id == DEFAULT_VOICE:
+            return None
+        path = self._voices_dir / f"{voice_id}.wav"
+        if not VOICE_ID.match(voice_id) or not path.is_file():
+            raise UnknownVoiceError(f"No Chatterbox voice '{voice_id}'.")
+        return path

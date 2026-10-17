@@ -28,7 +28,8 @@ STATIC_DIR = PROJECT_ROOT / "app" / "static"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = get_settings()
+    # Honour a test override so tests never read the developer's .env (e.g. preload_models=true).
+    settings = app.dependency_overrides.get(get_settings, get_settings)()
     app.state.stt = SttEngine(settings)
     app.state.tts = build_tts_engine(settings)
     app.state.clip_store = ClipStore(settings.evaluation_dir, settings.collection_sample_rate)

@@ -28,6 +28,16 @@ ICORE_TTS_ENGINE=chatterbox uv run uvicorn app.main:app --port 8000
 Measured on an M1 Pro (16 GB): model load ≈ 32 s, then ≈ 40–50 s to generate 4 s of speech.
 Fine for checking quality, too slow to serve users; production needs a CUDA GPU.
 
+**Cloned voices.** Chatterbox can speak in a recorded person's voice from a ~10 s reference.
+Build one from that speaker's `/collect` clips (only with their consent):
+
+```bash
+uv run python -m evaluation.make_voice_reference karim   # writes voices/karim.wav
+```
+
+The API then offers voice `karim` (`GET /v1/voices`, `"voice": "karim"` in `/v1/speak`). Cloning
+copies the timbre, not the dialect. On the M1 Pro a 6 s sentence took about 90 s.
+
 Neither engine speaks Egyptian dialect: Piper's Arabic voice is Jordanian/MSA-trained and sounds
 robotic, Chatterbox is more natural but uses a general Arabic accent. Egyptian speech needs a
 fine-tuned voice (see the plan, section 9).

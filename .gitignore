@@ -9,3 +9,4 @@ evaluation/results/
 .DS_Store
 evaluation/manifest.csv
 .claude/
+voices/
