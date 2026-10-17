@@ -53,6 +53,16 @@ def test_transcribe_auto_language_and_domain_prompt(client, auth, stt):
     assert "IcoreSoft" in stt.calls[0]["initial_prompt"]
 
 
+def test_dialect_prompt_applies_to_arabic_only_and_combines_with_domain(client, auth, stt, settings):
+    settings.stt_dialect_prompt = "إزيك"
+    clip = {"file": ("clip.wav", wav_bytes(), "audio/wav")}
+    client.post("/v1/transcribe", headers=auth, files=clip, data={"language": "ar", "domain": "general"})
+    client.post("/v1/transcribe", headers=auth, files=clip, data={"language": "en"})
+    assert stt.calls[0]["initial_prompt"].startswith("إزيك ")
+    assert "IcoreSoft" in stt.calls[0]["initial_prompt"]
+    assert stt.calls[1]["initial_prompt"] is None
+
+
 def test_transcribe_rejects_unknown_domain(client, auth):
     response = client.post(
         "/v1/transcribe",

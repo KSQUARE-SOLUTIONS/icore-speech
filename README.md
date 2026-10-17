@@ -16,7 +16,7 @@ uv run uvicorn app.main:app --port 8000
 ```
 
 Open http://localhost:8000, paste the token, then record or upload audio, or type text to hear it.
-Models download on first use into `models/` (Whisper `large-v3-turbo` ≈ 1.6 GB, each Piper voice ≈ 60 MB).
+Models download on first use into `models/` (Whisper `large-v3` ≈ 3.1 GB, each Piper voice ≈ 60 MB).
 
 Chatterbox (≈ 3 GB, uses the Mac GPU through MPS):
 
@@ -82,7 +82,22 @@ uv run python -m evaluation.run_benchmark --manifest evaluation/manifest.csv \
 ```
 
 It prints WER (raw and normalised), CER, RTF and latency per model, and writes CSVs to
-`evaluation/results/`. Normalisation (`app/text/arabic_normalizer.py`) is for scoring only; the API
+`evaluation/results/`. `--prompt "<sentence>"` tests a Whisper context sentence.
+
+First results (17 Oct 2026, 50 read prompts, 1 speaker, 3.5 min, M1 Pro CPU int8):
+
+| Model | WER norm | CER norm | RTF |
+| --- | --- | --- | --- |
+| large-v3 + dialect prompt | **23.3%** | **8.8%** | 2.19 |
+| large-v3 | 30.2% | 15.5% | 1.94 |
+| large-v3-turbo + dialect prompt | 38.2% | 15.5% | 0.99 |
+| large-v3-turbo | 40.5% | 18.4% | 0.83 |
+| small | 58.9% | 22.7% | 0.67 |
+| MAdel121/whisper-small-egyptian-arabic | 58.9% | 22.7% | 0.37 |
+
+The "Egyptian" small model produced exactly the same text as base `small` on all 50 clips.
+One speaker reading prompts is an optimistic, narrow test, and the prompt was chosen on this same
+set: re-check with more speakers, free speech and noisy rooms before treating these as final. Normalisation (`app/text/arabic_normalizer.py`) is for scoring only; the API
 always returns the raw transcript.
 
 ## Server

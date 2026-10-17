@@ -70,7 +70,14 @@ def wav_bytes(seconds: float = 1.0, sample_rate: int = 16000) -> bytes:
 
 @pytest.fixture
 def settings() -> Settings:
-    return Settings(_env_file=None, api_token=TOKEN, max_upload_mb=1, max_audio_seconds=5, max_text_chars=50)
+    return Settings(
+        _env_file=None,
+        api_token=TOKEN,
+        max_upload_mb=1,
+        max_audio_seconds=5,
+        max_text_chars=50,
+        stt_dialect_prompt="",
+    )
 
 
 @pytest.fixture

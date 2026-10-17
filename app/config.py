@@ -19,13 +19,18 @@ class Settings(BaseSettings):
     models_dir: Path = PROJECT_ROOT / "models"
     preload_models: bool = False
 
-    stt_model: str = "large-v3-turbo"
+    # Benchmark on 50 Egyptian clips (Oct 2026): large-v3 + dialect prompt was most accurate
+    # (WER 23% vs 38% for large-v3-turbo + prompt) but ~2.2x slower than real time on an M1 CPU.
+    stt_model: str = "large-v3"
     stt_device: Literal["cpu", "cuda", "auto"] = "cpu"
     stt_compute_type: str = "int8"
     stt_cpu_threads: int = 0
     stt_beam_size: int = 5
     stt_vad_filter: bool = True
     stt_default_language: str = "ar"
+    # Context sentence in Egyptian dialect sent to Whisper on every Arabic request. Steers it toward
+    # colloquial spelling; cut normalised WER 30% -> 23% on large-v3. Empty string disables it.
+    stt_dialect_prompt: str = "إزيك، عامل إيه النهارده؟ أنا كنت عايز أسأل على حاجة لو سمحت."
 
     tts_engine: Literal["piper", "chatterbox"] = "piper"
     tts_default_language: str = "ar"

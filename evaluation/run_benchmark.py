@@ -44,7 +44,7 @@ def error_rates(references: list[str], hypotheses: list[str]) -> dict[str, float
     }
 
 
-def benchmark(model: str, clips: list[tuple[Path, str]], language: str, base: Settings) -> dict:
+def benchmark(model: str, clips: list[tuple[Path, str]], language: str, base: Settings, prompt: str | None = None) -> dict:
     engine = SttEngine(base.model_copy(update={"stt_model": model}))
     load_started = time.perf_counter()
     engine.load()
@@ -52,7 +52,7 @@ def benchmark(model: str, clips: list[tuple[Path, str]], language: str, base: Se
 
     rows, hypotheses, audio_total, processing_total, latencies = [], [], 0.0, 0.0, []
     for audio_path, reference in clips:
-        result = engine.transcribe(audio_path, language)
+        result = engine.transcribe(audio_path, language, prompt)
         hypotheses.append(result.text)
         audio_total += result.audio_seconds
         processing_total += result.processing_ms / 1000
@@ -61,7 +61,7 @@ def benchmark(model: str, clips: list[tuple[Path, str]], language: str, base: Se
                      "audio_seconds": result.audio_seconds, "processing_ms": result.processing_ms})
 
     summary = {
-        "model": model,
+        "model": f"{model} +prompt" if prompt else model,
         "clips": len(clips),
         **error_rates([r for _, r in clips], hypotheses),
         "rtf": processing_total / audio_total if audio_total else 0.0,
@@ -77,11 +77,12 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--models", nargs="+", default=["large-v3-turbo"])
     parser.add_argument("--language", default="ar")
+    parser.add_argument("--prompt", help="initial_prompt passed to Whisper, e.g. a sentence in Egyptian dialect")
     args = parser.parse_args()
 
     clips = read_manifest(args.manifest)
     base = Settings()
-    runs = [benchmark(model, clips, args.language, base) for model in args.models]
+    runs = [benchmark(model, clips, args.language, base, args.prompt) for model in args.models]
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")

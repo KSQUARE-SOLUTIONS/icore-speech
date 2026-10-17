@@ -122,9 +122,11 @@ def transcribe(
     if language != "auto" and not LANGUAGE_CODE.match(language):
         raise HTTPException(422, "language must be an ISO code such as 'ar' or 'en', or 'auto'.")
     try:
-        prompt = prompt_for(domain) if domain else None
+        domain_terms = prompt_for(domain) if domain else None
     except UnknownDomainError as exc:
         raise HTTPException(422, str(exc)) from exc
+    dialect = settings.stt_dialect_prompt if language == "ar" else ""
+    prompt = " ".join(part for part in (dialect, domain_terms) if part) or None
 
     with stored_upload(file.file, file.filename, settings.max_upload_bytes) as path:
         validate_duration(path, settings.max_audio_seconds)
