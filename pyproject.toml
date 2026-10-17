@@ -1,0 +1,30 @@
+[project]
+name = "icore-speech"
+version = "0.1.0"
+description = "Icore Speech Engine: self-hosted speech-to-text and text-to-speech service"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "pydantic-settings>=2.4",
+    "faster-whisper>=1.2.1",
+    # faster-whisper 1.2.1 passes `metadata_errors` to av.open(), which newer PyAV removed.
+    "av>=12,<16",
+    "piper-tts>=1.8.0",
+    "soundfile>=0.12",
+    "numpy>=1.26,<2",
+]
+
+[project.optional-dependencies]
+chatterbox = ["chatterbox-tts>=0.1.7"]
+eval = ["jiwer>=3.0"]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27", "jiwer>=3.0"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

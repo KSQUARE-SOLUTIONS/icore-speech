@@ -1,0 +1,168 @@
+import logging
+import re
+import uuid
+from contextlib import asynccontextmanager
+from typing import Annotated, Literal
+
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
+from pydantic import BaseModel, Field
+
+from app.audio.encoding import MEDIA_TYPES, encode
+from app.audio.validation import AudioRejected, stored_upload, validate_duration
+from app.config import PROJECT_ROOT, Settings, get_settings
+from app.security.auth import require_token
+from app.stt.engine import SttEngine
+from app.text.vocabulary import UnknownDomainError, prompt_for
+from app.tts import build_tts_engine
+from app.tts.base import TtsEngine, UnknownVoiceError
+
+logger = logging.getLogger("icore_speech")
+LANGUAGE_CODE = re.compile(r"^[a-z]{2,3}$")
+STATIC_DIR = PROJECT_ROOT / "app" / "static"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    app.state.stt = SttEngine(settings)
+    app.state.tts = build_tts_engine(settings)
+    if settings.preload_models:
+        app.state.stt.load()
+        app.state.tts.load()
+    yield
+
+
+app = FastAPI(title="Icore Speech Engine", version="0.1.0", lifespan=lifespan)
+
+
+def get_stt(request: Request) -> SttEngine:
+    return request.app.state.stt
+
+
+def get_tts(request: Request) -> TtsEngine:
+    return request.app.state.tts
+
+
+@app.exception_handler(AudioRejected)
+async def audio_rejected_handler(_: Request, exc: AudioRejected) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": str(exc)})
+
+
+class SegmentOut(BaseModel):
+    start: float
+    end: float
+    text: str
+
+
+class TranscribeResponse(BaseModel):
+    request_id: str
+    status: Literal["completed"] = "completed"
+    language: str
+    language_probability: float
+    text: str
+    segments: list[SegmentOut] | None = None
+    audio_seconds: float
+    processing_ms: int
+    model_version: str
+
+
+class SpeakRequest(BaseModel):
+    text: str = Field(min_length=1)
+    language: str = "ar"
+    voice: str | None = None
+    format: Literal["wav", "mp3"] = "mp3"
+
+
+@app.get("/", include_in_schema=False)
+def test_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/health")
+def health(
+    settings: Annotated[Settings, Depends(get_settings)],
+    stt: Annotated[SttEngine, Depends(get_stt)],
+    tts: Annotated[TtsEngine, Depends(get_tts)],
+) -> dict:
+    return {
+        "status": "ok",
+        "stt": {"model": stt.model_name, "device": settings.stt_device, "loaded": stt.is_loaded},
+        "tts": {"engine": tts.name, "loaded": tts.is_loaded},
+    }
+
+
+@app.get("/v1/voices", dependencies=[Depends(require_token)])
+def list_voices(tts: Annotated[TtsEngine, Depends(get_tts)]) -> dict:
+    return {"engine": tts.name, "voices": [v.__dict__ for v in tts.voices()]}
+
+
+@app.post("/v1/transcribe", dependencies=[Depends(require_token)], response_model_exclude_none=True)
+def transcribe(
+    settings: Annotated[Settings, Depends(get_settings)],
+    stt: Annotated[SttEngine, Depends(get_stt)],
+    file: Annotated[UploadFile, File()],
+    language: Annotated[str, Form()] = "ar",
+    domain: Annotated[str | None, Form()] = None,
+    timestamps: Annotated[bool, Form()] = False,
+) -> TranscribeResponse:
+    request_id = f"req_{uuid.uuid4().hex[:16]}"
+    if language != "auto" and not LANGUAGE_CODE.match(language):
+        raise HTTPException(422, "language must be an ISO code such as 'ar' or 'en', or 'auto'.")
+    try:
+        prompt = prompt_for(domain) if domain else None
+    except UnknownDomainError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    with stored_upload(file.file, file.filename, settings.max_upload_bytes) as path:
+        validate_duration(path, settings.max_audio_seconds)
+        result = stt.transcribe(path, None if language == "auto" else language, prompt)
+
+    logger.info(
+        "transcribe request_id=%s audio_s=%.1f processing_ms=%d model=%s",
+        request_id, result.audio_seconds, result.processing_ms, result.model,
+    )
+    return TranscribeResponse(
+        request_id=request_id,
+        language=result.language,
+        language_probability=result.language_probability,
+        text=result.text,
+        segments=[SegmentOut(**s.__dict__) for s in result.segments] if timestamps else None,
+        audio_seconds=result.audio_seconds,
+        processing_ms=result.processing_ms,
+        model_version=result.model,
+    )
+
+
+@app.post("/v1/speak", dependencies=[Depends(require_token)])
+def speak(
+    body: SpeakRequest,
+    settings: Annotated[Settings, Depends(get_settings)],
+    tts: Annotated[TtsEngine, Depends(get_tts)],
+) -> Response:
+    request_id = f"req_{uuid.uuid4().hex[:16]}"
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(422, "text is empty.")
+    if len(text) > settings.max_text_chars:
+        raise HTTPException(413, f"text is longer than {settings.max_text_chars} characters.")
+    try:
+        speech = tts.synthesize(text, body.language, body.voice)
+    except UnknownVoiceError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    logger.info(
+        "speak request_id=%s chars=%d audio_s=%.1f processing_ms=%d engine=%s",
+        request_id, len(text), speech.seconds, speech.processing_ms, speech.engine,
+    )
+    return Response(
+        content=encode(speech.audio, speech.sample_rate, body.format),
+        media_type=MEDIA_TYPES[body.format],
+        headers={
+            "X-Request-Id": request_id,
+            "X-Engine": speech.engine,
+            "X-Voice": speech.voice,
+            "X-Audio-Seconds": str(speech.seconds),
+            "X-Processing-Ms": str(speech.processing_ms),
+        },
+    )

@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+models/
+evaluation/audio/
+evaluation/results/
+.pytest_cache/
+.DS_Store
+evaluation/manifest.csv
+.claude/

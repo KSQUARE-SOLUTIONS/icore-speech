@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Icore Speech</title>
+<style>
+  :root {
+    --color-background: #f6f7f9;
+    --color-surface: #ffffff;
+    --color-border: #dfe3e8;
+    --color-text: #16191d;
+    --color-text-muted: #5d6670;
+    --color-accent: #1f6feb;
+    --color-accent-text: #ffffff;
+    --color-danger: #c62828;
+    --color-recording: #d93025;
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font-body: 15px;
+    --font-small: 13px;
+    --font-title: 18px;
+    --content-max-width: 1080px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-background: #0f1115;
+      --color-surface: #171a20;
+      --color-border: #2a2f37;
+      --color-text: #e8eaed;
+      --color-text-muted: #9aa3ad;
+      --color-accent: #4c8dff;
+      --color-danger: #ff6b6b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-background);
+    color: var(--color-text);
+    font: var(--font-body)/1.6 system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+  }
+  .page { max-width: var(--content-max-width); margin: 0 auto; padding: var(--space-lg) var(--space-md); }
+  .page-header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--space-md); margin-bottom: var(--space-lg); }
+  .page-header h1 { margin: 0; font-size: 22px; }
+  .page-header p { margin: var(--space-xs) 0 0; color: var(--color-text-muted); font-size: var(--font-small); }
+  .token-field { display: flex; flex-direction: column; gap: var(--space-xs); min-width: 260px; }
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-lg); }
+  .panel {
+    display: flex; flex-direction: column; gap: var(--space-md);
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg); padding: var(--space-lg);
+  }
+  .panel h2 { margin: 0; font-size: var(--font-title); }
+  .panel-subtitle { margin: calc(-1 * var(--space-sm)) 0 0; color: var(--color-text-muted); font-size: var(--font-small); }
+  .field-row { display: flex; flex-wrap: wrap; gap: var(--space-md); }
+  .field { display: flex; flex-direction: column; gap: var(--space-xs); flex: 1 1 140px; }
+  label, .label { font-size: var(--font-small); color: var(--color-text-muted); }
+  input, select, textarea {
+    font: inherit; color: var(--color-text); background: var(--color-background);
+    border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-sm) var(--space-md);
+  }
+  input, select { width: 100%; min-width: 0; }
+  input[type="checkbox"] { width: auto; }
+  textarea { min-height: 120px; resize: vertical; }
+  .checkbox { display: flex; align-items: center; gap: var(--space-sm); font-size: var(--font-small); }
+  .actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+  button, .button-link {
+    font: inherit; text-decoration: none; display: inline-flex; align-items: center; border-radius: var(--radius-md); padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); cursor: pointer;
+  }
+  button.primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-text); }
+  button.recording { background: var(--color-recording); border-color: var(--color-recording); color: var(--color-accent-text); }
+  button:disabled { opacity: 0.55; cursor: progress; }
+  .result {
+    min-height: 96px; padding: var(--space-md); border-radius: var(--radius-md);
+    background: var(--color-background); border: 1px solid var(--color-border);
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .result:empty::before { content: attr(data-placeholder); color: var(--color-text-muted); }
+  .status { min-height: 1.6em; font-size: var(--font-small); color: var(--color-text-muted); }
+  .status.error { color: var(--color-danger); }
+  audio { width: 100%; }
+  .ltr { direction: ltr; text-align: left; }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="page-header">
+    <div>
+      <h1>Icore Speech</h1>
+      <p>صفحة تجربة محلية: صوت إلى نص، ونص إلى صوت.</p>
+    </div>
+    <div class="token-field">
+      <label for="api-token">API token · من ملف <bdi>.env</bdi></label>
+      <input id="api-token" class="ltr" type="password" autocomplete="off" placeholder="ICORE_API_TOKEN">
+    </div>
+  </header>
+
+  <div class="panels">
+    <section class="panel" aria-labelledby="transcribe-title">
+      <h2 id="transcribe-title">صوت إلى نص</h2>
+      <p class="panel-subtitle">سجّل من المايك أو ارفع ملف صوت.</p>
+      <div class="field-row">
+        <div class="field">
+          <label for="transcribe-language">اللغة</label>
+          <select id="transcribe-language">
+            <option value="ar">عربي</option>
+            <option value="en">إنجليزي</option>
+            <option value="auto">تحديد تلقائي</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="transcribe-file">ملف صوت</label>
+          <input id="transcribe-file" type="file" accept="audio/*,video/mp4,.webm">
+        </div>
+      </div>
+      <label class="checkbox"><input id="transcribe-timestamps" type="checkbox"> أوقات كل جملة (timestamps)</label>
+      <div class="actions">
+        <button id="record-button" type="button">ابدأ التسجيل</button>
+        <button id="transcribe-button" type="button" class="primary">فرّغ الملف</button>
+      </div>
+      <div id="transcribe-result" class="result" data-placeholder="النص هيظهر هنا"></div>
+      <div id="transcribe-status" class="status" role="status"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="speak-title">
+      <h2 id="speak-title">نص إلى صوت</h2>
+      <p class="panel-subtitle">اكتب النص واسمعه، أو نزّله كملف.</p>
+      <div class="field">
+        <label for="speak-text">النص</label>
+        <textarea id="speak-text" maxlength="1000">أهلاً بيك في آي كور سوفت. إزاي نقدر نساعدك النهارده؟</textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="speak-language">اللغة</label>
+          <select id="speak-language">
+            <option value="ar">عربي</option>
+            <option value="en">إنجليزي</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="speak-format">الصيغة</label>
+          <select id="speak-format">
+            <option value="mp3">mp3</option>
+            <option value="wav">wav</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="speak-button" type="button" class="primary">حوّل لصوت</button>
+        <a id="speak-download" class="button-link" hidden download>نزّل الملف</a>
+      </div>
+      <audio id="speak-player" controls hidden></audio>
+      <div id="speak-status" class="status" role="status"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+  const TOKEN_KEY = "icore-speech-token";
+  const byId = (id) => document.getElementById(id);
+
+  const tokenInput = byId("api-token");
+  try { tokenInput.value = localStorage.getItem(TOKEN_KEY) || ""; } catch {}
+  tokenInput.addEventListener("change", () => {
+    try { localStorage.setItem(TOKEN_KEY, tokenInput.value.trim()); } catch {}
+  });
+
+  function setStatus(element, message, isError = false) {
+    element.textContent = message;
+    element.classList.toggle("error", isError);
+  }
+
+  async function errorMessage(response) {
+    try {
+      const body = await response.json();
+      return typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+    } catch {
+      return `HTTP ${response.status}`;
+    }
+  }
+
+  function authHeaders() {
+    return { Authorization: `Bearer ${tokenInput.value.trim()}` };
+  }
+
+  // Speech to text
+  const transcribeStatus = byId("transcribe-status");
+  const transcribeResult = byId("transcribe-result");
+  const transcribeButton = byId("transcribe-button");
+  const recordButton = byId("record-button");
+  let recorder = null;
+
+  async function transcribe(blob, filename) {
+    const form = new FormData();
+    form.append("file", blob, filename);
+    form.append("language", byId("transcribe-language").value);
+    form.append("timestamps", byId("transcribe-timestamps").checked);
+    transcribeButton.disabled = true;
+    transcribeResult.textContent = "";
+    setStatus(transcribeStatus, "بيفرّغ...");
+    try {
+      const response = await fetch("/v1/transcribe", { method: "POST", headers: authHeaders(), body: form });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      const data = await response.json();
+      const lines = [data.text || "(مفيش كلام اتعرف عليه)"];
+      if (data.segments) {
+        lines.push("", ...data.segments.map((s) => `[${s.start.toFixed(1)} - ${s.end.toFixed(1)}] ${s.text}`));
+      }
+      transcribeResult.textContent = lines.join("\n");
+      setStatus(
+        transcribeStatus,
+        `${data.model_version} · اللغة ${data.language} · صوت ${data.audio_seconds} ث · معالجة ${(data.processing_ms / 1000).toFixed(1)} ث`
+      );
+    } catch (error) {
+      setStatus(transcribeStatus, error.message, true);
+    } finally {
+      transcribeButton.disabled = false;
+    }
+  }
+
+  transcribeButton.addEventListener("click", () => {
+    const file = byId("transcribe-file").files[0];
+    if (!file) return setStatus(transcribeStatus, "اختار ملف الأول، أو سجّل من المايك.", true);
+    transcribe(file, file.name);
+  });
+
+  recordButton.addEventListener("click", async () => {
+    if (recorder && recorder.state === "recording") {
+      recorder.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = [];
+      recorder = new MediaRecorder(stream);
+      recorder.addEventListener("dataavailable", (event) => chunks.push(event.data));
+      recorder.addEventListener("stop", () => {
+        stream.getTracks().forEach((track) => track.stop());
+        recordButton.textContent = "ابدأ التسجيل";
+        recordButton.classList.remove("recording");
+        const type = recorder.mimeType || "audio/webm";
+        const extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        transcribe(new Blob(chunks, { type }), `recording.${extension}`);
+      });
+      recorder.start();
+      recordButton.textContent = "وقّف وفرّغ";
+      recordButton.classList.add("recording");
+      setStatus(transcribeStatus, "بيسجّل... دوس تاني لما تخلص.");
+    } catch (error) {
+      setStatus(transcribeStatus, `مقدرش أفتح المايك: ${error.message}`, true);
+    }
+  });
+
+  // Text to speech
+  const speakStatus = byId("speak-status");
+  const speakButton = byId("speak-button");
+  const speakPlayer = byId("speak-player");
+  const speakDownload = byId("speak-download");
+  let audioUrl = null;
+
+  speakButton.addEventListener("click", async () => {
+    const format = byId("speak-format").value;
+    speakButton.disabled = true;
+    setStatus(speakStatus, "بيولّد الصوت...");
+    try {
+      const response = await fetch("/v1/speak", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ text: byId("speak-text").value, language: byId("speak-language").value, format }),
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      audioUrl = URL.createObjectURL(await response.blob());
+      speakPlayer.src = audioUrl;
+      speakPlayer.hidden = false;
+      speakPlayer.play().catch(() => {});
+      speakDownload.href = audioUrl;
+      speakDownload.download = `speech.${format}`;
+      speakDownload.hidden = false;
+      const seconds = response.headers.get("X-Audio-Seconds");
+      const processing = (Number(response.headers.get("X-Processing-Ms")) / 1000).toFixed(1);
+      setStatus(speakStatus, `${response.headers.get("X-Engine")} · ${response.headers.get("X-Voice")} · صوت ${seconds} ث · معالجة ${processing} ث`);
+    } catch (error) {
+      setStatus(speakStatus, error.message, true);
+    } finally {
+      speakButton.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
