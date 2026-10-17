@@ -72,6 +72,7 @@
       <div class="actions">
         <button id="speak-button" type="button" class="primary">حوّل لصوت</button>
         <a id="speak-download" class="button-link" hidden download>نزّل الملف</a>
+        <button id="speak-transcribe" type="button" hidden>فرّغ الصوت ده</button>
       </div>
       <audio id="speak-player" controls hidden></audio>
       <div id="speak-status" class="status" role="status"></div>
@@ -147,7 +148,14 @@
   const speakButton = byId("speak-button");
   const speakPlayer = byId("speak-player");
   const speakDownload = byId("speak-download");
+  const speakTranscribe = byId("speak-transcribe");
   let audioUrl = null;
+  let generatedSpeech = null;
+
+  // Round trip: send the generated speech to the speech-to-text panel.
+  speakTranscribe.addEventListener("click", () => {
+    if (generatedSpeech) transcribe(generatedSpeech.blob, generatedSpeech.filename);
+  });
 
   speakButton.addEventListener("click", async () => {
     const format = byId("speak-format").value;
@@ -161,7 +169,10 @@
       });
       if (!response.ok) throw new Error(await errorMessage(response));
       if (audioUrl) URL.revokeObjectURL(audioUrl);
-      audioUrl = URL.createObjectURL(await response.blob());
+      const blob = await response.blob();
+      generatedSpeech = { blob, filename: `speech.${format}` };
+      audioUrl = URL.createObjectURL(blob);
+      speakTranscribe.hidden = false;
       speakPlayer.src = audioUrl;
       speakPlayer.hidden = false;
       speakPlayer.play().catch(() => {});
