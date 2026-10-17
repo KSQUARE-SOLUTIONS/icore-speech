@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 
@@ -38,6 +39,8 @@ class ChatterboxEngine:
             return
         with self._load_lock:
             if self._model is None:
+                # Let ops that MPS lacks fall back to CPU instead of failing on Apple Silicon.
+                os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
                 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
                 self._model = ChatterboxMultilingualTTS.from_pretrained(device=self._settings.chatterbox_device)

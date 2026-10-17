@@ -25,6 +25,13 @@ uv sync --extra chatterbox
 ICORE_TTS_ENGINE=chatterbox uv run uvicorn app.main:app --port 8000
 ```
 
+Measured on an M1 Pro (16 GB): model load ≈ 32 s, then ≈ 40–50 s to generate 4 s of speech.
+Fine for checking quality, too slow to serve users; production needs a CUDA GPU.
+
+Neither engine speaks Egyptian dialect: Piper's Arabic voice is Jordanian/MSA-trained and sounds
+robotic, Chatterbox is more natural but uses a general Arabic accent. Egyptian speech needs a
+fine-tuned voice (see the plan, section 9).
+
 ## API
 
 All `/v1/*` routes need `Authorization: Bearer <ICORE_API_TOKEN>`. Never ship this token inside a

@@ -17,7 +17,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-chatterbox = ["chatterbox-tts>=0.1.7"]
+# resemble-perth (Chatterbox's watermarker) imports pkg_resources, which setuptools 81 removed.
+chatterbox = ["chatterbox-tts>=0.1.7", "setuptools<81"]
 eval = ["jiwer>=3.0"]
 
 [dependency-groups]
