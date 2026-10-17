@@ -6,7 +6,7 @@ const VOICE_STORAGE_KEY = "icore-speech-voice";
 const authHeaders = bindTokenInput(byId("api-token"));
 
 // ---------------------------------------------------------------- tabs
-const tabs = ["listen", "speak", "voices"];
+const tabs = ["listen", "speak", "voices", "dictionary"];
 function showTab(name) {
   for (const tab of tabs) {
     byId(`tab-${tab}`).setAttribute("aria-selected", String(tab === name));
@@ -15,6 +15,7 @@ function showTab(name) {
 }
 tabs.forEach((tab) => byId(`tab-${tab}`).addEventListener("click", () => showTab(tab)));
 byId("go-to-voices").addEventListener("click", () => showTab("voices"));
+byId("go-to-dictionary").addEventListener("click", () => showTab("dictionary"));
 
 // ---------------------------------------------------------------- server health
 async function checkHealth() {
@@ -222,6 +223,17 @@ byId("speak-language").addEventListener("change", renderVoiceGrid);
 loadVoices();
 
 // ---------------------------------------------------------------- text to speech
+// Returns { blob, headers } for `text` in the selected voice; throws with a readable message.
+async function requestSpeech(text, format = "mp3") {
+  const response = await fetch("/v1/speak", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ text, language: byId("speak-language").value, voice: selectedVoice, format }),
+  });
+  if (!response.ok) throw new Error(await errorMessage(response));
+  return { blob: await response.blob(), headers: response.headers };
+}
+
 const speakStatus = byId("speak-status");
 const speakButton = byId("speak-button");
 const speakPlayer = byId("speak-player");
@@ -244,13 +256,7 @@ speakButton.addEventListener("click", async () => {
   speakButton.disabled = true;
   const stop = startBusyStatus(speakStatus, "بيولّد الصوت…");
   try {
-    const response = await fetch("/v1/speak", {
-      method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ text: speakText.value, language: byId("speak-language").value, voice: selectedVoice, format }),
-    });
-    if (!response.ok) throw new Error(await errorMessage(response));
-    const blob = await response.blob();
+    const { blob, headers } = await requestSpeech(speakText.value, format);
     generatedSpeech = { blob, filename: `speech.${format}` };
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     audioUrl = URL.createObjectURL(blob);
@@ -262,8 +268,8 @@ speakButton.addEventListener("click", async () => {
     speakDownload.hidden = false;
     speakTranscribe.hidden = false;
     stop();
-    const processing = (Number(response.headers.get("X-Processing-Ms")) / 1000).toFixed(1);
-    setStatus(speakStatus, `${response.headers.get("X-Voice")} · صوت ${response.headers.get("X-Audio-Seconds")} ث · اتولّد في ${processing} ث`);
+    const processing = (Number(headers.get("X-Processing-Ms")) / 1000).toFixed(1);
+    setStatus(speakStatus, `${headers.get("X-Voice")} · صوت ${headers.get("X-Audio-Seconds")} ث · اتولّد في ${processing} ث`);
   } catch (error) {
     stop();
     setStatus(speakStatus, error.message, true);
@@ -325,3 +331,79 @@ cloneButton.addEventListener("click", async () => {
     cloneButton.disabled = !cloneSample;
   }
 });
+
+// ---------------------------------------------------------------- pronunciation dictionary
+const fixStatus = byId("fix-status");
+const fixPlayer = byId("fix-player");
+let fixAudioUrl = null;
+
+async function playWord(word, message) {
+  const stop = startBusyStatus(fixStatus, message);
+  try {
+    const { blob } = await requestSpeech(word);
+    stop();
+    if (fixAudioUrl) URL.revokeObjectURL(fixAudioUrl);
+    fixAudioUrl = URL.createObjectURL(blob);
+    fixPlayer.src = fixAudioUrl;
+    fixPlayer.hidden = false;
+    fixPlayer.play().catch(() => {});
+    setStatus(fixStatus, `ده نطق «${word}» بصوت ${selectedVoice}.`);
+  } catch (error) {
+    stop();
+    setStatus(fixStatus, error.message, true);
+  }
+}
+
+async function loadFixes() {
+  const response = await fetch("/v1/pronunciations", { headers: authHeaders() });
+  const list = byId("fix-list");
+  if (!response.ok) return list.replaceChildren(Object.assign(document.createElement("li"), { className: "empty", textContent: await errorMessage(response) }));
+  const fixes = (await response.json()).pronunciations;
+  if (!fixes.length) return list.replaceChildren(Object.assign(document.createElement("li"), { className: "empty", textContent: "لسه مفيش تصليحات." }));
+  list.replaceChildren(...fixes.map((fix) => {
+    const item = document.createElement("li");
+    item.className = "voice-card";
+    const body = document.createElement("div");
+    body.className = "voice-body";
+    const line = document.createElement("strong");
+    line.append(document.createTextNode(fix.word), Object.assign(document.createElement("span"), { className: "fix-arrow", textContent: "←" }), document.createTextNode(fix.spoken));
+    body.append(line, Object.assign(document.createElement("p"), { textContent: fix.source === "local" ? "متضافة من الصفحة" : "أساسية في الريبو" }));
+    const listen = Object.assign(document.createElement("button"), { type: "button", className: "ghost", textContent: "اسمع" });
+    listen.addEventListener("click", () => playWord(fix.word, "بيولّد…"));
+    item.append(body, listen);
+    if (fix.source === "local") {
+      const remove = Object.assign(document.createElement("button"), { type: "button", className: "ghost danger", textContent: "امسح" });
+      remove.addEventListener("click", async () => {
+        const result = await fetch(`/v1/pronunciations/${encodeURIComponent(fix.word)}`, { method: "DELETE", headers: authHeaders() });
+        if (!result.ok) return setStatus(fixStatus, await errorMessage(result), true);
+        setStatus(fixStatus, `اتمسح تصليح «${fix.word}».`);
+        loadFixes();
+      });
+      item.append(remove);
+    }
+    return item;
+  }));
+}
+
+byId("fix-listen-before").addEventListener("click", () => {
+  const word = byId("fix-word").value.trim();
+  if (!word) return setStatus(fixStatus, "اكتب الكلمة الأول.", true);
+  playWord(word, "بيولّد النطق الحالي…");
+});
+
+byId("fix-save").addEventListener("click", async () => {
+  const word = byId("fix-word").value.trim();
+  const spoken = byId("fix-spoken").value.trim();
+  if (!word || !spoken) return setStatus(fixStatus, "اكتب الكلمة والطريقة اللي تتقري بيها.", true);
+  const response = await fetch(`/v1/pronunciations/${encodeURIComponent(word)}`, {
+    method: "PUT",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ spoken }),
+  });
+  if (!response.ok) return setStatus(fixStatus, await errorMessage(response), true);
+  await loadFixes();
+  playWord(word, "اتحفظ، بيولّد النطق الجديد…");
+});
+
+byId("api-token").addEventListener("change", loadFixes);
+loadFixes();

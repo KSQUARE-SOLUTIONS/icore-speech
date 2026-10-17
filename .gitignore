@@ -10,3 +10,4 @@ evaluation/results/
 evaluation/manifest.csv
 .claude/
 /voices/
+/data/

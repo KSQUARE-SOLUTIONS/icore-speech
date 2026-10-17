@@ -452,3 +452,7 @@ audio { width: 100%; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .textarea-short { min-height: calc(var(--space-2xl) + var(--space-xl)); }
+
+.inline-link { display: inline; padding: 0; border: 0; font-size: inherit; font-weight: 600; color: var(--color-accent); }
+.inline-link:hover { text-decoration: underline; }
+.fix-arrow { color: var(--color-text-muted); margin: 0 var(--space-sm); }

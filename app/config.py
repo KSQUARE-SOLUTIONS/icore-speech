@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     voicetut_keep_user_diacritics: bool = True
     # word,spoken lines that fix how VoiceTut says specific words (see the file's header).
     voicetut_overrides_file: Path = PROJECT_ROOT / "app" / "text" / "lexicons" / "voicetut_overrides.csv"
+    # Fixes added from the web page's dictionary tab; local to this machine, win over the file above.
+    pronunciations_file: Path = PROJECT_ROOT / "data" / "pronunciations.csv"
     # A built-in speaker (e.g. "mohamed", "asmaa") or a cloned voice id from voices_dir.
     voicetut_default_voice: str = "mohamed"
     # Reference recordings for cloned voices: <voices_dir>/<voice_id>.wav (about 10 s each).

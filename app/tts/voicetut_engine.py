@@ -1,4 +1,3 @@
-import csv
 import json
 import os
 import re
@@ -9,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from app.config import Settings
+from app.pronunciations.store import PronunciationStore
 from app.tts.base import Speech, UnknownVoiceError, Voice
 
 LANGUAGE_CODES = {"ar": "arz", "en": "en"}  # our codes -> VoiceTut's (arz = Egyptian Arabic)
@@ -48,21 +48,14 @@ def keep_user_diacritics(normalize):
 QAF = "\u0642"
 
 
-def pronunciation_overrides(normalizer, overrides_file: Path) -> dict[str, str]:
+def pronunciation_overrides(normalizer, fixes: dict[str, str]) -> dict[str, str]:
     """Words VoiceTut should receive as written rather than through its diacritics table.
 
     A listening test showed the model already says qaf the Egyptian way (قوي -> "awi") when the
     word arrives bare, while VoiceTut's table forced a q (قَوِي). So every table entry containing
-    qaf is passed through bare. Then the lines of `overrides_file` (word,spoken) are applied, so
-    anyone can fix a mispronounced word without touching code."""
+    qaf is passed through bare. Then `fixes` (word -> spoken, from the pronunciation store) apply."""
     overrides = {word: word for word in getattr(normalizer, "_diacritics", {}) if QAF in word}
-    if overrides_file.is_file():
-        lines = [line for line in overrides_file.read_text(encoding="utf-8").splitlines()
-                 if line.strip() and not line.lstrip().startswith("#")]
-        for row in csv.DictReader(lines):
-            word, spoken = (row.get("word") or "").strip(), (row.get("spoken") or "").strip()
-            if word and spoken:
-                overrides[word] = spoken
+    overrides.update(fixes)
     return overrides
 
 
@@ -79,6 +72,7 @@ class VoiceTutEngine:
 
     def __init__(self, settings: Settings):
         self._settings = settings
+        self._pronunciations = PronunciationStore(settings.voicetut_overrides_file, settings.pronunciations_file)
         self._tts = None
         self._load_lock = threading.Lock()
         self._run_lock = threading.Lock()
@@ -125,10 +119,19 @@ class VoiceTutEngine:
                 tts.model.audio_tokenizer = tokenizer
             else:
                 tts = VoiceTutTTS.from_pretrained(str(self._model_dir), device=device)
-            tts.normalizer.add_lexicon(pronunciation_overrides(tts.normalizer, self._settings.voicetut_overrides_file))
             if self._settings.voicetut_keep_user_diacritics:
                 tts.normalizer.normalize = keep_user_diacritics(tts.normalizer.normalize)
             self._tts = tts
+            self.reload_pronunciations()
+
+    def reload_pronunciations(self) -> None:
+        """Apply the current pronunciation fixes; called at load and whenever the page edits them."""
+        if self._tts is None:
+            return
+        normalizer = self._tts.normalizer
+        lexicon = pronunciation_overrides(normalizer, self._pronunciations.mapping())
+        with self._run_lock:
+            normalizer._lexicon = lexicon  # VoiceTut's lookup table, checked before its own diacritics
 
     def synthesize(self, text: str, language: str, voice: str | None = None) -> Speech:
         if language not in LANGUAGE_CODES:

@@ -16,6 +16,8 @@ from app.collection.router import router as collection_router
 from app.collection.store import ClipStore
 from app.config import PROJECT_ROOT, Settings, get_settings
 from app.dependencies import get_stt, get_tts
+from app.pronunciations.router import router as pronunciations_router
+from app.pronunciations.store import PronunciationStore
 from app.security.auth import require_token
 from app.stt.engine import SttEngine
 from app.text.egyptian_spelling import egyptian_spelling
@@ -38,6 +40,7 @@ async def lifespan(app: FastAPI):
     app.state.tts = build_tts_engine(settings)
     app.state.clip_store = ClipStore(settings.evaluation_dir, settings.collection_sample_rate)
     app.state.voice_store = VoiceStore(settings.voices_dir)
+    app.state.pronunciation_store = PronunciationStore(settings.voicetut_overrides_file, settings.pronunciations_file)
     if settings.preload_models:
         app.state.stt.load()
         app.state.tts.load()
@@ -47,6 +50,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Icore Speech Engine", version="0.1.0", lifespan=lifespan)
 app.include_router(collection_router)
 app.include_router(voices_router)
+app.include_router(pronunciations_router)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 

@@ -20,7 +20,8 @@ icore-speech                 # starts the server and opens the page (Ctrl+C stop
 `icore-speech --no-open` starts without opening the browser.
 
 The page has three tabs: **سماع** (record or drop a file → text), **نطق** (text → speech in any voice)
-and **الأصوات** (clone a new voice from a 10–30 s recording, list and delete cloned voices). Paste the
+and **الأصوات** (clone a new voice from a 10–30 s recording, list and delete cloned voices) and
+**القاموس** (fix how a word is pronounced, live). Paste the
 token once under الإعدادات. Use Chrome or Safari for the microphone.
 Models download on first use into `models/` (Whisper `large-v3` ≈ 3.1 GB, VoiceTut ≈ 2.5 GB plus
 its audio tokenizer ≈ 0.8 GB).
@@ -42,8 +43,9 @@ can be installed at a time. VoiceTut's weights are Apache-2.0, but it was traine
 audio: review the data rights before selling it to clients.
 
 **Pronunciation fixes.** Write diacritics only on the ambiguous letter (بحبِّك to a woman,
-بحبَّك to a man, نعلِّم); they now reach the model. If a word comes out wrong, add a `word,spoken`
-line to `app/text/lexicons/voicetut_overrides.csv` and restart. VoiceTut's own table forced a q
+بحبَّك to a man, نعلِّم); they now reach the model. If a word comes out wrong, fix it in the page's **القاموس** tab (word as
+typed → how it should sound); it applies immediately and is saved in `data/pronunciations.csv`
+(this machine only). Shared fixes for everyone live in `app/text/lexicons/voicetut_overrides.csv`. VoiceTut's own table forced a q
 in words like قوي; those are now passed bare, which a listening test showed the model says the
 Egyptian way.
 
@@ -69,6 +71,9 @@ Flutter or web client: apps call Laravel, Laravel calls this service on the inte
 | `GET /v1/voices` | – | voices of the active TTS engine; `cloned: true` marks cloned ones |
 | `POST /v1/voices` | multipart: `file` (5–30 s), `name`, `consent=true`, `reference_text` (optional: transcribed if empty) | the new voice, usable immediately |
 | `DELETE /v1/voices/{id}` | – | removes a cloned voice |
+| `GET /v1/pronunciations` | – | pronunciation fixes (`source`: `base` from the repo, `local` from the page) |
+| `PUT /v1/pronunciations/{word}` | JSON: `spoken` | adds or changes a local fix; applied without restart |
+| `DELETE /v1/pronunciations/{word}` | – | removes a local fix |
 | `GET /health` | – | loaded models (no token needed) |
 
 ```bash

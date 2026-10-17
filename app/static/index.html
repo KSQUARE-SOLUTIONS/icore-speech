@@ -37,6 +37,7 @@
     <button class="tab" role="tab" id="tab-listen" aria-controls="panel-listen" aria-selected="true">سماع <span class="tab-hint">صوت ← نص</span></button>
     <button class="tab" role="tab" id="tab-speak" aria-controls="panel-speak" aria-selected="false">نطق <span class="tab-hint">نص ← صوت</span></button>
     <button class="tab" role="tab" id="tab-voices" aria-controls="panel-voices" aria-selected="false">الأصوات</button>
+    <button class="tab" role="tab" id="tab-dictionary" aria-controls="panel-dictionary" aria-selected="false">القاموس</button>
   </nav>
 
   <!-- Speech to text -->
@@ -94,7 +95,7 @@
         <div class="field">
           <textarea id="speak-text" maxlength="1000" aria-label="النص">بقولك إيه، ما تيجي نتغدى سوا النهارده؟ أنا عازمك.</textarea>
           <div id="speak-counter" class="counter"></div>
-          <p class="panel-subtitle">لو كلمة ممكن تتقري بأكتر من طريقة، شكّل الحرف المهم بس: «بحبِّك» لبنت، «بحبَّك» لولد، «نعلِّم».</p>
+          <p class="panel-subtitle">لو كلمة ممكن تتقري بأكتر من طريقة، شكّل الحرف المهم بس: «بحبِّك» لبنت، «بحبَّك» لولد، «نعلِّم». كلمة بتتقال غلط على طول؟ <button id="go-to-dictionary" class="ghost inline-link" type="button">صلّحها من القاموس</button></p>
         </div>
         <div class="field-row">
           <div class="field">
@@ -169,6 +170,39 @@
         <h2>الأصوات المستنسخة</h2>
         <ul id="voice-list" class="voice-list"></ul>
         <p class="panel-subtitle" id="builtin-count"></p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Pronunciation dictionary -->
+  <section id="panel-dictionary" class="tab-panel" role="tabpanel" aria-labelledby="tab-dictionary" hidden>
+    <div class="layout-split">
+      <div class="panel">
+        <h2>صلّح نطق كلمة</h2>
+        <p class="panel-subtitle">اكتب الكلمة زي ما بتتكتب، وجنبها الطريقة اللي المفروض تتقري بيها. التصليح بيشتغل على طول من غير ما تعيد تشغيل حاجة.</p>
+        <div class="field-row">
+          <div class="field">
+            <label for="fix-word">الكلمة زي ما بتتكتب</label>
+            <input id="fix-word" autocomplete="off" placeholder="لية">
+          </div>
+          <div class="field">
+            <label for="fix-spoken">تتقري إزاي</label>
+            <input id="fix-spoken" autocomplete="off" placeholder="ليه">
+          </div>
+        </div>
+        <p class="panel-subtitle">نصايح: اكتبها بالهاء بدل التاء المربوطة لو آخرها بيتنطق «ه» (لية ← ليه)، وبالهمزة لو القاف بتتنطق همزة (قهوة ← أهوة). ولو حرف فيه لبس، شكّله هو بس.</p>
+        <div class="actions">
+          <button id="fix-listen-before" type="button">اسمعها دلوقتي</button>
+          <button id="fix-save" type="button" class="primary">احفظ واسمعها</button>
+        </div>
+        <div id="fix-status" class="status" role="status"></div>
+        <audio id="fix-player" controls hidden></audio>
+      </div>
+
+      <div class="panel">
+        <h2>التصليحات</h2>
+        <ul id="fix-list" class="voice-list"></ul>
       </div>
     </div>
   </section>
