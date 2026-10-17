@@ -2,7 +2,8 @@
 
 Chatterbox conditions on the first ~10 s of a reference recording. This picks the speaker's
 cleanest clips (lowest background noise, no clipping), joins them with short pauses up to the
-target length and writes voices/<speaker>.wav, which the API then offers as voice "<speaker>".
+target length and writes voices/<speaker>.wav (offered by the API as voice "<speaker>") plus
+voices/<speaker>.txt with the words spoken in it.
 
 Usage:
     uv run python -m evaluation.make_voice_reference karim
@@ -39,16 +40,17 @@ def build_reference(speaker: str, target_seconds: float) -> tuple[str, float, in
         audio, sample_rate = sf.read(settings.evaluation_dir / row["audio_path"], dtype="float32")
         if np.mean(np.abs(audio) > 0.99) > 0.001:
             continue  # audibly clipped
-        candidates.append((noise_floor(audio, sample_rate), audio, sample_rate))
+        candidates.append((noise_floor(audio, sample_rate), audio, sample_rate, row["reference"]))
     candidates.sort(key=lambda c: c[0])
 
     sample_rate = candidates[0][2]
     pause = np.zeros(int(PAUSE_SECONDS * sample_rate), dtype=np.float32)
-    pieces, total, used = [], 0.0, 0
-    for _, audio, rate in candidates:
+    pieces, texts, total, used = [], [], 0.0, 0
+    for _, audio, rate, text in candidates:
         if rate != sample_rate:
             continue
         pieces.extend([audio, pause])
+        texts.append(text)
         total += len(audio) / sample_rate + PAUSE_SECONDS
         used += 1
         if total >= target_seconds:
@@ -59,6 +61,8 @@ def build_reference(speaker: str, target_seconds: float) -> tuple[str, float, in
     target = settings.voices_dir / f"{speaker}.wav"
     target.parent.mkdir(parents=True, exist_ok=True)
     sf.write(target, reference, sample_rate, subtype="PCM_16")
+    # Some models (e.g. OmniVoice/VoiceTut) also want the words spoken in the reference.
+    target.with_suffix(".txt").write_text(" ".join(texts), encoding="utf-8")
     return str(target), round(len(reference) / sample_rate, 1), used
 
 
