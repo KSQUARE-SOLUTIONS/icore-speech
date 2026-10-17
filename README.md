@@ -3,44 +3,43 @@
 Self-hosted speech service for IcoreSoft projects:
 
 - **Speech → text** (`POST /v1/transcribe`) with [faster-whisper](https://github.com/SYSTRAN/faster-whisper), Arabic first.
-- **Text → speech** (`POST /v1/speak`) with [Piper](https://github.com/OHF-Voice/piper1-gpl) (light, local testing) or [Chatterbox Multilingual](https://github.com/resemble-ai/chatterbox) (natural Arabic/English, MIT).
+- **Text → speech** (`POST /v1/speak`) with [VoiceTut-TTS](https://huggingface.co/mohammedaly22/VoiceTut-TTS) (Egyptian Arabic, voice cloning). Chatterbox and Piper remain as alternative engines.
 
 The same code runs on a Mac and on a server; only `.env` changes. Plan and decisions: *Icore Speech Engine — خطة STT + TTS* (Claude Docs).
 
 ## Run locally (macOS, Apple Silicon)
 
 ```bash
-uv sync                      # Python 3.12 + dependencies
+uv sync --extra voicetut     # Python 3.12 + dependencies + the default TTS engine
 cp .env.example .env         # then set ICORE_API_TOKEN
 uv run uvicorn app.main:app --port 8000
 ```
 
 Open http://localhost:8000, paste the token, then record or upload audio, or type text to hear it.
-Models download on first use into `models/` (Whisper `large-v3` ≈ 3.1 GB, each Piper voice ≈ 60 MB).
+Models download on first use into `models/` (Whisper `large-v3` ≈ 3.1 GB, VoiceTut ≈ 2.5 GB plus
+its audio tokenizer ≈ 0.8 GB).
 
-Chatterbox (≈ 3 GB, uses the Mac GPU through MPS):
+### Text-to-speech engines
+
+| Engine (`ICORE_TTS_ENGINE`) | Install | Egyptian quality (our listening test) | M1 Pro, per sentence |
+| --- | --- | --- | --- |
+| `voicetut` (default) | `uv sync --extra voicetut` | Read 5/5 colloquial sentences correctly; 3 sounded natural | ≈ 15–20 s |
+| `chatterbox` (+ `ICORE_CHATTERBOX_T3_REPO=NAMAA-Space/NAMAA-Egyptian-TTS`) | `uv sync --extra chatterbox` | Garbled colloquial words even with respelling | ≈ 40–60 s |
+| `piper` | base install | Jordanian/MSA voice, robotic | < 1 s |
+
+`voicetut` and `chatterbox` need different torch/transformers versions, so only one of the two extras
+can be installed at a time. VoiceTut's weights are Apache-2.0, but it was trained on YouTube podcast
+audio: review the data rights before selling it to clients.
+
+**Cloned voices.** VoiceTut and Chatterbox can speak in a recorded person's voice. Build a
+reference from that speaker's `/collect` clips (only with their consent):
 
 ```bash
-uv sync --extra chatterbox
-ICORE_TTS_ENGINE=chatterbox uv run uvicorn app.main:app --port 8000
+uv run python -m evaluation.make_voice_reference karim   # writes voices/karim.wav and voices/karim.txt
 ```
 
-Measured on an M1 Pro (16 GB): model load ≈ 32 s, then ≈ 40–50 s to generate 4 s of speech.
-Fine for checking quality, too slow to serve users; production needs a CUDA GPU.
-
-**Cloned voices.** Chatterbox can speak in a recorded person's voice from a ~10 s reference.
-Build one from that speaker's `/collect` clips (only with their consent):
-
-```bash
-uv run python -m evaluation.make_voice_reference karim   # writes voices/karim.wav
-```
-
-The API then offers voice `karim` (`GET /v1/voices`, `"voice": "karim"` in `/v1/speak`). Cloning
-copies the timbre, not the dialect. On the M1 Pro a 6 s sentence took about 90 s.
-
-Neither engine speaks Egyptian dialect: Piper's Arabic voice is Jordanian/MSA-trained and sounds
-robotic, Chatterbox is more natural but uses a general Arabic accent. Egyptian speech needs a
-fine-tuned voice (see the plan, section 9).
+The API then offers voice `karim` (`GET /v1/voices`, `"voice": "karim"` in `/v1/speak`), next to
+VoiceTut's 17 built-in speakers. `ICORE_VOICETUT_DEFAULT_VOICE` picks the default.
 
 ## API
 

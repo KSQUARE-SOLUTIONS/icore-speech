@@ -3,6 +3,10 @@ from app.tts.base import TtsEngine
 
 
 def build_tts_engine(settings: Settings) -> TtsEngine:
+    if settings.tts_engine == "voicetut":
+        from app.tts.voicetut_engine import VoiceTutEngine
+
+        return VoiceTutEngine(settings)
     if settings.tts_engine == "chatterbox":
         from app.tts.chatterbox_engine import ChatterboxEngine
 

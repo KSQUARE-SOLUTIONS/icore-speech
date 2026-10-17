@@ -22,6 +22,7 @@ class PiperEngine:
     training-data licence before using it in production."""
 
     name = "piper"
+    needs_egyptian_respelling = True
 
     def __init__(self, settings: Settings):
         self._settings = settings

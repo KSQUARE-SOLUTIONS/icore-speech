@@ -24,6 +24,7 @@ class ChatterboxEngine:
     who agreed to have their voice cloned."""
 
     name = "chatterbox"
+    needs_egyptian_respelling = True
 
     def __init__(self, settings: Settings):
         self._settings = settings

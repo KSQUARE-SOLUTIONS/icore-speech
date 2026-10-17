@@ -33,6 +33,8 @@ class TtsEngine(Protocol):
     """Every text-to-speech backend implements this, so the API never depends on one model."""
 
     name: str
+    # True when the model reads Arabic by MSA rules and benefits from app/text/egyptian_spelling.py.
+    needs_egyptian_respelling: bool
 
     @property
     def is_loaded(self) -> bool: ...

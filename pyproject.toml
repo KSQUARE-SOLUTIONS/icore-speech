@@ -19,6 +19,8 @@ dependencies = [
 [project.optional-dependencies]
 # resemble-perth (Chatterbox's watermarker) imports pkg_resources, which setuptools 81 removed.
 chatterbox = ["chatterbox-tts>=0.1.7", "setuptools<81"]
+# Default TTS. OmniVoice needs newer torch/transformers than Chatterbox, so the two extras conflict.
+voicetut = ["omnivoice>=0.2.1", "voicetut-tts>=0.1.1"]
 eval = ["jiwer>=3.0"]
 
 [dependency-groups]
@@ -26,6 +28,7 @@ dev = ["pytest>=8", "httpx>=0.27", "jiwer>=3.0"]
 
 [tool.uv]
 package = false
+conflicts = [[{ extra = "chatterbox" }, { extra = "voicetut" }]]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

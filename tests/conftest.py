@@ -39,6 +39,7 @@ class FakeSttEngine:
 class FakeTtsEngine:
     name = "fake-tts"
     is_loaded = True
+    needs_egyptian_respelling = True
 
     def load(self):
         pass

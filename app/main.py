@@ -166,7 +166,7 @@ def speak(
         raise HTTPException(413, f"text is longer than {settings.max_text_chars} characters.")
     spoken_text = text
     respell = settings.tts_egyptian_spelling if body.egyptian_spelling is None else body.egyptian_spelling
-    if body.language == "ar" and respell:
+    if body.language == "ar" and respell and tts.needs_egyptian_respelling:
         qaf = settings.tts_qaf_as_hamza if body.qaf_as_hamza is None else body.qaf_as_hamza
         spoken_text = egyptian_spelling(text, qaf_as_hamza=qaf)
     try:

@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     # colloquial spelling; cut normalised WER 30% -> 23% on large-v3. Empty string disables it.
     stt_dialect_prompt: str = "إزيك، عامل إيه النهارده؟ أنا كنت عايز أسأل على حاجة لو سمحت."
 
-    tts_engine: Literal["piper", "chatterbox"] = "chatterbox"
+    # Listening test (Oct 2026): VoiceTut read colloquial Egyptian correctly where Chatterbox/NAMAA garbled it.
+    tts_engine: Literal["voicetut", "chatterbox", "piper"] = "voicetut"
     tts_default_language: str = "ar"
     # Respell Arabic text before TTS so MSA-trained models say it the Egyptian way
     # (app/text/egyptian_spelling.py). Requests can override both per call.
@@ -47,6 +48,11 @@ class Settings(BaseSettings):
     # e.g. an Egyptian fine-tune such as "NAMAA-Space/NAMAA-Egyptian-TTS". Empty = base Chatterbox.
     # Listening test (Oct 2026): NAMAA + Egyptian respelling sounded most Egyptian of base/NAMAA/oddadmix.
     chatterbox_t3_repo: str = "NAMAA-Space/NAMAA-Egyptian-TTS"
+    voicetut_repo: str = "mohammedaly22/VoiceTut-TTS"
+    voicetut_device: Literal["cpu", "mps", "cuda"] = "mps"
+    voicetut_num_steps: int = 32
+    # A built-in speaker (e.g. "mohamed", "asmaa") or a cloned voice id from voices_dir.
+    voicetut_default_voice: str = "mohamed"
     # Reference recordings for cloned voices: <voices_dir>/<voice_id>.wav (about 10 s each).
     voices_dir: Path = PROJECT_ROOT / "voices"
 
