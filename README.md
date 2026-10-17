@@ -58,11 +58,23 @@ Limits (from `.env`): upload 25 MB, audio 600 s, text 1,000 characters. Uploads 
 server-generated name in a temp folder, decoded with FFmpeg to prove they are audio, and deleted
 after the request. Logs carry request id, durations and model only, never audio or text.
 
+## Recording Egyptian clips
+
+The benchmark (and later an Egyptian voice) needs real recordings with the exact words spoken.
+With `ICORE_ENABLE_COLLECTION=true` in `.env`, open http://localhost:8000/collect:
+
+- **جمل جاهزة**: reads the 50 sentences in `evaluation/prompts/egyptian.txt` (numbers, dates, prices,
+  places, names, tech terms). Edit the transcript if the speaker said something different.
+- **كلام حر**: free speech; Whisper drafts the transcript and the speaker corrects it word by word.
+
+Each clip is saved as mono 24 kHz WAV under `evaluation/audio/<speaker>/` and appended to
+`evaluation/manifest.csv`. Recording needs the speaker's consent; audio and manifest stay out of git.
+Aim for several speakers, phones and rooms (quiet and noisy) before trusting the numbers.
+
 ## Benchmark
 
-Pick a model by measurement, not impression. Put real Egyptian clips under `evaluation/audio/`
-(git-ignored), list them with a human-checked reference in `evaluation/manifest.csv`
-(format: `evaluation/manifest.example.csv`), then:
+Pick a model by measurement, not impression. Record clips (above) or add your own to
+`evaluation/manifest.csv` (format: `evaluation/manifest.example.csv`), then:
 
 ```bash
 uv run python -m evaluation.run_benchmark --manifest evaluation/manifest.csv \

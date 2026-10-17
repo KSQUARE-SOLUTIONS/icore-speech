@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Icore Speech · Recordings</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<main class="page single-column">
+  <header class="page-header">
+    <div>
+      <h1>تسجيلات مصرية</h1>
+      <p>كل تسجيل بيتحفظ مع النص الصح بتاعه. بنستخدمهم لقياس دقة التفريغ، وبعدين لتدريب صوت مصري.</p>
+    </div>
+  </header>
+
+  <section class="panel" aria-labelledby="setup-title">
+    <h2 id="setup-title">قبل ما تبدأ</h2>
+    <div class="field-row">
+      <div class="field">
+        <label for="api-token">API token · من ملف <bdi>.env</bdi></label>
+        <input id="api-token" class="ltr" type="password" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="speaker-id">اسم المتحدث (إنجليزي صغير، مثلًا karim)</label>
+        <input id="speaker-id" class="ltr" autocomplete="off" pattern="[a-z0-9][a-z0-9_-]{1,31}">
+      </div>
+    </div>
+    <label class="checkbox">
+      <input id="consent" type="checkbox">
+      موافق إن صوتي يتسجل ويتستخدم داخل IcoreSoft لاختبار وتدريب موديلات الصوت.
+    </label>
+    <p id="stats" class="status"></p>
+  </section>
+
+  <section class="panel" aria-labelledby="record-title">
+    <div class="panel-heading">
+      <h2 id="record-title">سجّل</h2>
+      <div class="mode-switch" role="group" aria-label="نوع التسجيل">
+        <button id="mode-prompt" type="button" aria-pressed="true">جمل جاهزة</button>
+        <button id="mode-free" type="button" aria-pressed="false">كلام حر</button>
+      </div>
+    </div>
+
+    <div id="prompt-section" class="stack">
+      <div class="progress">
+        <span id="progress-label" class="progress-label"></span>
+        <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+      </div>
+      <p class="panel-subtitle">اقرا الجملة بطريقتك العادية، كأنك بتكلم حد.</p>
+      <div id="prompt-card" class="prompt-card"></div>
+    </div>
+    <p id="free-hint" class="panel-subtitle" hidden>اتكلم في أي موضوع من 5 لـ 30 ثانية. هنفرّغه، وإنت تصحح النص قبل الحفظ.</p>
+
+    <div class="field">
+      <label for="reference">النص اللي اتقال فعلًا (عدّله لو قلت حاجة مختلفة)</label>
+      <textarea id="reference"></textarea>
+    </div>
+
+    <div class="actions">
+      <button id="record-button" type="button" class="primary">ابدأ التسجيل</button>
+      <button id="save-button" type="button" disabled>احفظ وكمّل</button>
+      <button id="skip-button" type="button">تخطّي</button>
+    </div>
+    <audio id="preview" controls hidden></audio>
+    <div id="record-status" class="status" role="status"></div>
+  </section>
+</main>
+
+<script type="module">
+  import { byId, bindStoredInput, bindTokenInput, setStatus, errorMessage, MicrophoneRecorder } from "/static/common.js";
+
+  const authHeaders = bindTokenInput(byId("api-token"));
+  const speakerInput = byId("speaker-id");
+  bindStoredInput(speakerInput, "icore-speech-speaker");
+
+  const recordStatus = byId("record-status");
+  const recordButton = byId("record-button");
+  const saveButton = byId("save-button");
+  const referenceInput = byId("reference");
+  const preview = byId("preview");
+
+  let mode = "prompt";
+  let prompts = [];
+  let currentPrompt = null;
+  let pendingClip = null;
+  let previewUrl = null;
+
+  function speaker() {
+    return speakerInput.value.trim().toLowerCase();
+  }
+
+  function showStats(stats) {
+    const minutes = (stats.seconds / 60).toFixed(1);
+    byId("stats").textContent = `المتسجل لحد دلوقتي: ${stats.clips} تسجيل · ${minutes} دقيقة · ${stats.speakers.length} متحدث`;
+  }
+
+  function clearPendingClip() {
+    pendingClip = null;
+    saveButton.disabled = true;
+    preview.hidden = true;
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = null;
+  }
+
+  function showNextPrompt() {
+    const remaining = prompts.filter((p) => !p.recorded && p !== currentPrompt);
+    currentPrompt = remaining[0] || prompts.find((p) => !p.recorded) || null;
+    const recorded = prompts.filter((p) => p.recorded).length;
+    byId("progress-label").textContent = `${recorded} من ${prompts.length}`;
+    byId("progress-fill").style.width = `${prompts.length ? (recorded / prompts.length) * 100 : 0}%`;
+    byId("prompt-card").textContent = currentPrompt ? currentPrompt.text : "خلصت كل الجمل. اتنقل لـ \"كلام حر\" لو عايز تكمّل.";
+    referenceInput.value = currentPrompt ? currentPrompt.text : "";
+    clearPendingClip();
+  }
+
+  async function loadPrompts() {
+    if (!speaker()) return setStatus(recordStatus, "اكتب اسم المتحدث الأول.", true);
+    const response = await fetch(`/v1/collection/prompts?speaker=${encodeURIComponent(speaker())}`, { headers: authHeaders() });
+    if (!response.ok) return setStatus(recordStatus, await errorMessage(response), true);
+    const data = await response.json();
+    prompts = data.prompts;
+    showStats(data.stats);
+    setStatus(recordStatus, "");
+    if (mode === "prompt") showNextPrompt();
+  }
+
+  async function draftTranscript(blob, filename) {
+    const form = new FormData();
+    form.append("file", blob, filename);
+    form.append("language", "ar");
+    setStatus(recordStatus, "بيفرّغ مسودة... صححها قبل الحفظ.");
+    const response = await fetch("/v1/transcribe", { method: "POST", headers: authHeaders(), body: form });
+    if (!response.ok) return setStatus(recordStatus, await errorMessage(response), true);
+    referenceInput.value = (await response.json()).text;
+    setStatus(recordStatus, "راجع النص وصححه كلمة كلمة، وبعدين احفظ.");
+  }
+
+  const recorder = new MicrophoneRecorder(({ blob, filename }) => {
+    recordButton.textContent = "سجّل تاني";
+    recordButton.classList.remove("recording");
+    pendingClip = { blob, filename };
+    previewUrl = URL.createObjectURL(blob);
+    preview.src = previewUrl;
+    preview.hidden = false;
+    saveButton.disabled = false;
+    if (mode === "free") draftTranscript(blob, filename);
+    else setStatus(recordStatus, "اسمع التسجيل، ولو تمام احفظ.");
+  });
+
+  recordButton.addEventListener("click", async () => {
+    if (recorder.isRecording) return recorder.stop();
+    if (!byId("consent").checked) return setStatus(recordStatus, "لازم توافق على التسجيل الأول.", true);
+    if (!speaker()) return setStatus(recordStatus, "اكتب اسم المتحدث الأول.", true);
+    try {
+      clearPendingClip();
+      await recorder.start();
+      recordButton.textContent = "وقّف";
+      recordButton.classList.add("recording");
+      setStatus(recordStatus, "بيسجّل...");
+    } catch (error) {
+      setStatus(recordStatus, `مقدرش أفتح المايك: ${error.message}`, true);
+    }
+  });
+
+  saveButton.addEventListener("click", async () => {
+    if (!pendingClip) return;
+    const form = new FormData();
+    form.append("file", pendingClip.blob, pendingClip.filename);
+    form.append("speaker", speaker());
+    form.append("reference", referenceInput.value);
+    form.append("consent", byId("consent").checked);
+    form.append("source", mode);
+    if (mode === "prompt" && currentPrompt) form.append("prompt_id", currentPrompt.id);
+    saveButton.disabled = true;
+    const response = await fetch("/v1/collection/clips", { method: "POST", headers: authHeaders(), body: form });
+    if (!response.ok) {
+      saveButton.disabled = false;
+      return setStatus(recordStatus, await errorMessage(response), true);
+    }
+    const data = await response.json();
+    showStats(data.stats);
+    setStatus(recordStatus, `اتحفظ (${data.seconds} ث).`);
+    recordButton.textContent = "ابدأ التسجيل";
+    if (mode === "prompt" && currentPrompt) {
+      currentPrompt.recorded = true;
+      showNextPrompt();
+    } else {
+      referenceInput.value = "";
+      clearPendingClip();
+    }
+  });
+
+  byId("skip-button").addEventListener("click", () => (mode === "prompt" ? showNextPrompt() : clearPendingClip()));
+
+  function setMode(next) {
+    mode = next;
+    byId("mode-prompt").setAttribute("aria-pressed", String(next === "prompt"));
+    byId("mode-free").setAttribute("aria-pressed", String(next === "free"));
+    byId("prompt-section").hidden = next !== "prompt";
+    byId("free-hint").hidden = next !== "free";
+    referenceInput.value = "";
+    if (next === "prompt") showNextPrompt();
+    else clearPendingClip();
+  }
+
+  byId("mode-prompt").addEventListener("click", () => setMode("prompt"));
+  byId("mode-free").addEventListener("click", () => setMode("free"));
+  speakerInput.addEventListener("change", loadPrompts);
+  byId("api-token").addEventListener("change", loadPrompts);
+  loadPrompts();
+</script>
+</body>
+</html>

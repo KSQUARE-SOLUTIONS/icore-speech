@@ -6,10 +6,14 @@ from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.audio.encoding import MEDIA_TYPES, encode
 from app.audio.validation import AudioRejected, stored_upload, validate_duration
+from app.collection.router import require_collection_enabled
+from app.collection.router import router as collection_router
+from app.collection.store import ClipStore
 from app.config import PROJECT_ROOT, Settings, get_settings
 from app.security.auth import require_token
 from app.stt.engine import SttEngine
@@ -27,6 +31,7 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     app.state.stt = SttEngine(settings)
     app.state.tts = build_tts_engine(settings)
+    app.state.clip_store = ClipStore(settings.evaluation_dir, settings.collection_sample_rate)
     if settings.preload_models:
         app.state.stt.load()
         app.state.tts.load()
@@ -34,6 +39,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Icore Speech Engine", version="0.1.0", lifespan=lifespan)
+app.include_router(collection_router)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 def get_stt(request: Request) -> SttEngine:
@@ -77,6 +84,11 @@ class SpeakRequest(BaseModel):
 @app.get("/", include_in_schema=False)
 def test_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/collect", include_in_schema=False, dependencies=[Depends(require_collection_enabled)])
+def collection_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "collect.html")
 
 
 @app.get("/health")

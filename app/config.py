@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     }
     chatterbox_device: Literal["cpu", "mps", "cuda"] = "mps"
 
+    # Recording page that builds the Egyptian test set (and later a voice dataset).
+    # Writes audio to disk, so keep it off on shared servers.
+    enable_collection: bool = False
+    evaluation_dir: Path = PROJECT_ROOT / "evaluation"
+    collection_sample_rate: int = 24000
+
     max_upload_mb: int = 25
     max_audio_seconds: int = 600
     max_text_chars: int = 1000
