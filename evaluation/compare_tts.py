@@ -28,6 +28,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--checkpoints", nargs="+", default=["base"])
     parser.add_argument("--voices", nargs="+", default=["default"])
+    parser.add_argument("--texts", nargs="+", default=SENTENCES, help="sentences to render (default: built-in pair)")
     args = parser.parse_args()
 
     settings = get_settings()
@@ -40,7 +41,7 @@ def main() -> None:
         engine = ChatterboxEngine(settings.model_copy(update={"chatterbox_t3_repo": repo}))
         label = checkpoint.split("/")[-1]
         for voice in args.voices:
-            for index, sentence in enumerate(SENTENCES, start=1):
+            for index, sentence in enumerate(args.texts, start=1):
                 speech = engine.synthesize(sentence, "ar", voice)
                 path = out_dir / f"{label}__{voice}__{index}.mp3"
                 path.write_bytes(encode(speech.audio, speech.sample_rate, "mp3"))
