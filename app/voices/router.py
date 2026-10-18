@@ -43,9 +43,11 @@ def clone_voice(
     reference_text: Annotated[str, Form()] = "",
     language: Annotated[str, Form()] = "ar",
     tone: Annotated[str, Form()] = "",
+    replace: Annotated[bool, Form()] = False,
 ) -> dict:
     """Add a cloned voice from a 5-30 s recording. Without `reference_text` the words are
-    transcribed with Whisper; the transcript is returned so callers can show it."""
+    transcribed with Whisper; the transcript is returned so callers can show it. `replace=true`
+    re-records an existing cloned voice (a better take of the same tone)."""
     if not consent:
         raise HTTPException(422, "The person whose voice this is must agree to it being cloned.")
     if tone and tone not in TONES:
@@ -63,7 +65,7 @@ def clone_voice(
             prompt = settings.stt_dialect_prompt if language == "ar" else None
             text = stt.transcribe(path, language, prompt).text
         try:
-            voice = store.create(voice_id, path, text, reserved)
+            voice = store.create(voice_id, path, text, reserved, replace)
         except VoiceRejected as exc:
             raise HTTPException(exc.status_code, str(exc)) from exc
     person, tone = split_voice_id(voice.id)

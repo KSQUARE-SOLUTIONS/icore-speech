@@ -445,6 +445,7 @@ audio { width: 100%; }
 .mode-switch button { border: none; background: transparent; padding: var(--space-xs) var(--space-md); }
 .mode-switch button[aria-pressed="true"] { background: var(--color-accent); color: var(--color-accent-text); }
 .tone-switch { flex-wrap: wrap; border-radius: var(--radius-md); }
+.tone-switch button.has-take::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-start: var(--space-xs); border-radius: 50%; background: var(--color-on-air); vertical-align: middle; }
 
 .script-card {
   padding: var(--space-md);

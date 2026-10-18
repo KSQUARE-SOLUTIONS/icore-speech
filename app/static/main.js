@@ -170,10 +170,11 @@ function rememberVoice(person, tone) {
 const toneLabel = (tone) => (tone ? tones[tone] ?? tone : "عادي");
 const allTones = () => ["", ...Object.keys(tones)];
 
-// Renders a row of tone buttons ("" = the normal tone) into `container`.
-function renderToneSwitch(container, toneIds, selected, onPick) {
+// Renders a row of tone buttons ("" = the normal tone) into `container`; tones in `marked` get a dot.
+function renderToneSwitch(container, toneIds, selected, onPick, marked = new Set()) {
   container.replaceChildren(...toneIds.map((tone) => {
     const button = Object.assign(document.createElement("button"), { type: "button", textContent: toneLabel(tone) });
+    button.classList.toggle("has-take", marked.has(tone));
     button.setAttribute("role", "radio");
     button.setAttribute("aria-pressed", String(tone === selected));
     button.addEventListener("click", () => onPick(tone));
@@ -375,42 +376,72 @@ speakButton.addEventListener("click", async () => {
 });
 
 // ---------------------------------------------------------------- clone a voice
+// Each tone keeps its own unsaved take (recording + its words) until it is saved, so recording
+// "excited" never throws away the "normal" take recorded a minute before.
 const cloneStatus = byId("clone-status");
 const cloneButton = byId("clone-button");
+const cloneSaveAll = byId("clone-save-all");
 const clonePreview = byId("clone-preview");
-let cloneSample = null;
-let clonePreviewUrl = null;
+const cloneText = byId("clone-text");
+const cloneTakes = new Map(); // tone -> { blob, filename, url, text }
 let cloneTone = "";
+
+const moodOf = (tone) => TONE_SCRIPTS[tone]?.mood ?? toneLabel(tone);
+const clonePerson = () => byId("clone-name").value.trim().toLowerCase();
+const isRecorded = (person, tone) => voices.some((voice) => voice.cloned && voice.person === person && (voice.tone ?? "") === tone);
 
 function renderCloneTone() {
   renderToneSwitch(byId("clone-tone"), allTones(), cloneTone, (tone) => {
     cloneTone = tone;
     renderCloneTone();
-  });
+  }, new Set(cloneTakes.keys()));
   const script = TONE_SCRIPTS[cloneTone] ?? { mood: toneLabel(cloneTone), text: "" };
   byId("clone-mood").textContent = script.mood;
   byId("clone-script").textContent = script.text;
+
+  const take = cloneTakes.get(cloneTone);
+  clonePreview.hidden = !take;
+  if (take && clonePreview.src !== take.url) clonePreview.src = take.url;
+  if (!take) clonePreview.removeAttribute("src");
+  cloneText.value = take?.text ?? "";
+  cloneButton.disabled = !take;
+  cloneButton.textContent = isRecorded(clonePerson(), cloneTone) ? `استبدل نبرة ${toneLabel(cloneTone)}` : `احفظ نبرة ${toneLabel(cloneTone)}`;
+  cloneSaveAll.hidden = cloneTakes.size < 2;
+  cloneSaveAll.textContent = `احفظ كل النبرات (${cloneTakes.size})`;
 }
 renderCloneTone();
+byId("clone-name").addEventListener("input", renderCloneTone);
+cloneText.addEventListener("input", () => {
+  const take = cloneTakes.get(cloneTone);
+  if (take) take.text = cloneText.value;
+});
+window.addEventListener("beforeunload", (event) => {
+  if (cloneTakes.size) event.preventDefault();
+});
 
 // From a "+ tone" chip: fill in the person and tone, ready to record.
 function prepareRecording(person, tone) {
   byId("clone-name").value = person;
   cloneTone = tone;
   renderCloneTone();
-  setStatus(cloneStatus, `سجّل «${person}» وهو ${TONE_SCRIPTS[tone]?.mood ?? toneLabel(tone)}.`);
+  setStatus(cloneStatus, `سجّل «${person}» وهو ${moodOf(tone)}.`);
   byId("clone-record").scrollIntoView({ behavior: "smooth", block: "center" });
   byId("clone-record").focus({ preventScroll: true });
 }
 
+function dropTake(tone) {
+  const take = cloneTakes.get(tone);
+  if (take) URL.revokeObjectURL(take.url);
+  cloneTakes.delete(tone);
+}
+
 function setCloneSample(blob, filename) {
-  cloneSample = { blob, filename };
-  if (clonePreviewUrl) URL.revokeObjectURL(clonePreviewUrl);
-  clonePreviewUrl = URL.createObjectURL(blob);
-  clonePreview.src = clonePreviewUrl;
-  clonePreview.hidden = false;
-  cloneButton.disabled = false;
-  setStatus(cloneStatus, "اسمع العينة، ولو تمام دوس «استنسخ الصوت».");
+  dropTake(cloneTone);
+  cloneTakes.set(cloneTone, { blob, filename, url: URL.createObjectURL(blob), text: "" });
+  renderCloneTone();
+  const others = cloneTakes.size - 1;
+  setStatus(cloneStatus, `اسمع تسجيل «${toneLabel(cloneTone)}»، ولو تمام احفظه.`
+    + (others ? ` وعندك ${others} نبرة تانية متسجّلة ومستنية الحفظ (عليها نقطة حمرا).` : " تقدر تغيّر النبرة وتسجّل، التسجيل ده مش هيضيع."));
 }
 
 bindRecordButton(byId("clone-record"), byId("clone-timer"), cloneStatus, ({ blob, filename, seconds }) => {
@@ -419,36 +450,50 @@ bindRecordButton(byId("clone-record"), byId("clone-timer"), cloneStatus, ({ blob
 }, 30);
 bindDropZone(byId("clone-drop"), byId("clone-file"), (file) => setCloneSample(file, file.name));
 
-cloneButton.addEventListener("click", async () => {
-  const name = byId("clone-name").value.trim().toLowerCase();
-  if (!/^[a-z0-9][a-z0-9_-]{1,31}$/.test(name)) return setStatus(cloneStatus, "اكتب اسم إنجليزي صغير، حرفين على الأقل (مثلًا sara).", true);
-  if (!byId("clone-consent").checked) return setStatus(cloneStatus, "لازم صاحب الصوت يوافق الأول.", true);
-  if (!cloneSample) return setStatus(cloneStatus, "سجّل أو ارفع عينة الأول.", true);
-
+// Saves the take of one tone; returns the saved voice, or throws with a readable message.
+async function saveTake(person, tone) {
+  const take = cloneTakes.get(tone);
   const form = new FormData();
-  form.append("file", cloneSample.blob, cloneSample.filename);
-  form.append("name", name);
+  form.append("file", take.blob, take.filename);
+  form.append("name", person);
   form.append("consent", "true");
-  form.append("reference_text", byId("clone-text").value);
-  form.append("tone", cloneTone);
-  cloneButton.disabled = true;
-  const stop = startBusyStatus(cloneStatus, "بيجهّز الصوت…");
+  form.append("reference_text", take.text);
+  form.append("tone", tone);
+  form.append("replace", String(isRecorded(person, tone)));
+  const response = await fetch("/v1/voices", { method: "POST", headers: authHeaders(), body: form });
+  if (!response.ok) throw new Error(`نبرة ${toneLabel(tone)}: ${await errorMessage(response)}`);
+  dropTake(tone);
+  return response.json();
+}
+
+async function saveTakes(tones) {
+  const person = clonePerson();
+  if (!/^[a-z0-9][a-z0-9_-]{1,31}$/.test(person)) return setStatus(cloneStatus, "اكتب اسم إنجليزي صغير، حرفين على الأقل (مثلًا sara).", true);
+  if (!byId("clone-consent").checked) return setStatus(cloneStatus, "لازم صاحب الصوت يوافق الأول.", true);
+  const replacing = tones.filter((tone) => isRecorded(person, tone)).map(toneLabel);
+  if (replacing.length && !confirm(`«${person}» عنده تسجيل قبل كده لـ: ${replacing.join("، ")}. تستبدله بالجديد؟`)) return;
+
+  cloneButton.disabled = cloneSaveAll.disabled = true;
+  const stop = startBusyStatus(cloneStatus, "بيحفظ…");
+  const saved = [];
   try {
-    const response = await fetch("/v1/voices", { method: "POST", headers: authHeaders(), body: form });
-    if (!response.ok) throw new Error(await errorMessage(response));
-    const voice = await response.json();
+    for (const tone of tones) saved.push(await saveTake(person, tone));
     stop();
-    byId("clone-text").value = voice.reference_text;
-    setStatus(cloneStatus, `اتسجّل «${voice.person}» بنبرة ${toneLabel(voice.tone)} (${voice.seconds} ث). جرّبه من قسم «نطق».`);
-    rememberVoice(voice.person, voice.tone);
-    await loadVoices();
+    setStatus(cloneStatus, `اتحفظ «${person}»: ${saved.map((voice) => `${toneLabel(voice.tone)} (${voice.seconds} ث)`).join("، ")}. جرّبه من قسم «نطق».`);
   } catch (error) {
     stop();
-    setStatus(cloneStatus, error.message, true);
+    setStatus(cloneStatus, (saved.length ? `اتحفظ ${saved.length} بس. ` : "") + error.message, true);
   } finally {
-    cloneButton.disabled = !cloneSample;
+    const last = saved.at(-1);
+    if (last) rememberVoice(last.person, last.tone);
+    cloneSaveAll.disabled = false;
+    await loadVoices();
+    renderCloneTone();
   }
-});
+}
+
+cloneButton.addEventListener("click", () => saveTakes([cloneTone]));
+cloneSaveAll.addEventListener("click", () => saveTakes(allTones().filter((tone) => cloneTakes.has(tone))));
 
 // ---------------------------------------------------------------- pronunciation dictionary
 const fixStatus = byId("fix-status");

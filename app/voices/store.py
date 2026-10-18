@@ -48,12 +48,15 @@ class VoiceStore:
     def ids(self) -> set[str]:
         return {voice.id for voice in self.list()}
 
-    def create(self, voice_id: str, upload: Path, reference_text: str, reserved_ids: set[str]) -> ClonedVoice:
+    def create(self, voice_id: str, upload: Path, reference_text: str, reserved_ids: set[str],
+               replace: bool = False) -> ClonedVoice:
+        """With `replace`, an existing cloned voice of that id is overwritten, only once the new
+        recording has passed every check."""
         if not VOICE_ID.match(voice_id):
             raise VoiceRejected("Name must be 2-32 lowercase English letters, digits, '-' or '_'.")
         if voice_id in reserved_ids:
             raise VoiceRejected(f"'{voice_id}' is a built-in voice name; choose another.", status_code=409)
-        if voice_id in self.ids():
+        if voice_id in self.ids() and not replace:
             raise VoiceRejected(f"A voice called '{voice_id}' already exists.", status_code=409)
         reference_text = clean_whitespace(reference_text)
         if not reference_text:

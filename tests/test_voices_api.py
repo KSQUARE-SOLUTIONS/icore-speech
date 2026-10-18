@@ -140,3 +140,17 @@ def test_speak_picks_the_recording_for_the_tone(cloning, auth, store):
     missing = cloning.post("/v1/speak", headers=auth, json={"text": "أهلا", "voice": "sara", "tone": "angry"})
     assert missing.status_code == 422
     assert cloning.post("/v1/speak", headers=auth, json={"text": "أهلا", "tone": "excited"}).status_code == 422
+
+
+def test_replace_re_records_a_tone(cloning, auth, store):
+    assert clone(cloning, auth, reference_text="أول مرة", tone="excited").status_code == 201
+    assert clone(cloning, auth, reference_text="تاني مرة", tone="excited").status_code == 409
+    again = clone(cloning, auth, seconds=12.0, reference_text="تاني مرة", tone="excited", replace="true")
+    assert again.status_code == 201, again.text
+    assert {(v.id, v.seconds, v.reference_text) for v in store.list()} == {("sara-excited", 12.0, "تاني مرة")}
+
+
+def test_failed_replace_keeps_the_old_recording(cloning, auth, store):
+    clone(cloning, auth, reference_text="أهلا")
+    assert clone(cloning, auth, seconds=3.0, reference_text="قصير", replace="true").status_code == 422
+    assert [(v.id, v.reference_text) for v in store.list()] == [("sara", "أهلا")]
