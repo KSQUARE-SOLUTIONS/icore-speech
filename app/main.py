@@ -25,7 +25,9 @@ from app.text.egyptian_spelling import egyptian_spelling
 from app.text.vocabulary import UnknownDomainError, prompt_for
 from app.tts import build_tts_engine
 from app.tts.base import TtsEngine, UnknownVoiceError
+from app.voices.router import get_voice_store
 from app.voices.router import router as voices_router
+from app.voices.tones import TONES, split_voice_id, voice_id_for
 from app.voices.store import VoiceStore
 
 logger = logging.getLogger("icore_speech")
@@ -83,6 +85,8 @@ class SpeakRequest(BaseModel):
     language: str = "ar"
     voice: str | None = None
     format: Literal["wav", "mp3"] = "mp3"
+    # Emotion: picks the person's recording in that tone (voice "karim" + tone "excited" -> karim-excited).
+    tone: str | None = None
     # Who is being spoken to; marks second-person endings (ايدك -> ايدِك for a woman). Arabic only.
     addressee: Addressee = "auto"
     egyptian_spelling: bool | None = None  # None = server default
@@ -156,6 +160,7 @@ def speak(
     body: SpeakRequest,
     settings: Annotated[Settings, Depends(get_settings)],
     tts: Annotated[TtsEngine, Depends(get_tts)],
+    voice_store: Annotated[VoiceStore, Depends(get_voice_store)],
 ) -> Response:
     request_id = f"req_{uuid.uuid4().hex[:16]}"
     text = body.text.strip()
@@ -168,8 +173,17 @@ def speak(
     if body.language == "ar" and respell and tts.needs_egyptian_respelling:
         qaf = settings.tts_qaf_as_hamza if body.qaf_as_hamza is None else body.qaf_as_hamza
         spoken_text = egyptian_spelling(spoken_text, qaf_as_hamza=qaf)
+    voice = body.voice
+    if body.tone:
+        if body.tone not in TONES:
+            raise HTTPException(422, f"Unknown tone '{body.tone}'. Use one of: {', '.join(TONES)}.")
+        if not body.voice:
+            raise HTTPException(422, "A tone needs a voice (e.g. voice=karim, tone=excited).")
+        voice = voice_id_for(split_voice_id(body.voice)[0], body.tone)
+        if voice not in voice_store.ids():
+            raise HTTPException(422, f"No '{TONES[body.tone]}' recording for '{body.voice}' yet: record one in the voices tab.")
     try:
-        speech = tts.synthesize(spoken_text, body.language, body.voice)
+        speech = tts.synthesize(spoken_text, body.language, voice)
     except UnknownVoiceError as exc:
         raise HTTPException(422, str(exc)) from exc
 

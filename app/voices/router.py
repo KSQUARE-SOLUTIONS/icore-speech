@@ -9,6 +9,7 @@ from app.security.auth import require_token
 from app.stt.engine import SttEngine
 from app.tts.base import TtsEngine
 from app.voices.store import MAX_SECONDS, VoiceRejected, VoiceStore
+from app.voices.tones import TONES, split_voice_id, voice_id_for
 
 router = APIRouter(prefix="/v1/voices", tags=["voices"], dependencies=[Depends(require_token)])
 
@@ -23,10 +24,11 @@ def list_voices(
     store: Annotated[VoiceStore, Depends(get_voice_store)],
 ) -> dict:
     cloned = store.ids()
-    return {
-        "engine": tts.name,
-        "voices": [v.__dict__ | {"cloned": v.id in cloned} for v in tts.voices()],
-    }
+    voices = []
+    for voice in tts.voices():
+        person, tone = split_voice_id(voice.id) if voice.id in cloned else (voice.id, None)
+        voices.append(voice.__dict__ | {"cloned": voice.id in cloned, "person": person, "tone": tone})
+    return {"engine": tts.name, "tones": TONES, "voices": voices}
 
 
 @router.post("", status_code=201)
@@ -40,12 +42,18 @@ def clone_voice(
     consent: Annotated[bool, Form()],
     reference_text: Annotated[str, Form()] = "",
     language: Annotated[str, Form()] = "ar",
+    tone: Annotated[str, Form()] = "",
 ) -> dict:
     """Add a cloned voice from a 5-30 s recording. Without `reference_text` the words are
     transcribed with Whisper; the transcript is returned so callers can show it."""
     if not consent:
         raise HTTPException(422, "The person whose voice this is must agree to it being cloned.")
-    voice_id = name.strip().lower()
+    if tone and tone not in TONES:
+        raise HTTPException(422, f"Unknown tone '{tone}'. Use one of: {', '.join(TONES)}.")
+    person = name.strip().lower()
+    if split_voice_id(person)[1]:
+        raise HTTPException(422, "Pick the tone from the tone field, not in the name.")
+    voice_id = voice_id_for(person, tone or None)
     reserved = {v.id for v in tts.voices()} - store.ids()
 
     with stored_upload(file.file, file.filename, settings.max_upload_bytes) as path:
@@ -58,7 +66,8 @@ def clone_voice(
             voice = store.create(voice_id, path, text, reserved)
         except VoiceRejected as exc:
             raise HTTPException(exc.status_code, str(exc)) from exc
-    return voice.__dict__
+    person, tone = split_voice_id(voice.id)
+    return voice.__dict__ | {"person": person, "tone": tone}
 
 
 @router.delete("/{voice_id}", status_code=204)

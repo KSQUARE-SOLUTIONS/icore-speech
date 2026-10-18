@@ -59,6 +59,11 @@ uv run python -m evaluation.make_voice_reference karim   # writes voices/karim.w
 The API then offers voice `karim` (`GET /v1/voices`, `"voice": "karim"` in `/v1/speak`), next to
 VoiceTut's 17 built-in speakers. `ICORE_VOICETUT_DEFAULT_VOICE` picks the default.
 
+**Tones.** The model copies the delivery of the reference, not only the timbre, so a tone
+(excited, angry, calm, serious, sad) is another recording of the same person, stored as
+`voices/<person>-<tone>.wav`. Record them from the voices tab; then send `"voice": "karim",
+"tone": "excited"` to `/v1/speak`.
+
 ## API
 
 All `/v1/*` routes need `Authorization: Bearer <ICORE_API_TOKEN>`. Never ship this token inside a
@@ -67,9 +72,9 @@ Flutter or web client: apps call Laravel, Laravel calls this service on the inte
 | Endpoint | Input | Output |
 | --- | --- | --- |
 | `POST /v1/transcribe` | multipart: `file`, `language` (`ar` default, `en`, `auto`), `domain` (optional, see `app/text/vocabularies/`), `timestamps` | JSON: `text`, `segments` (when asked), `language`, `audio_seconds`, `processing_ms`, `model_version` |
-| `POST /v1/speak` | JSON: `text`, `language` (`ar`/`en`), `voice` (optional), `format` (`mp3`/`wav`), `addressee` (`auto`/`male`/`female`: marks "you" endings, e.g. ايدك → ايدِك for a woman) | audio file; `X-Engine`, `X-Voice`, `X-Audio-Seconds`, `X-Processing-Ms` headers |
-| `GET /v1/voices` | – | voices of the active TTS engine; `cloned: true` marks cloned ones |
-| `POST /v1/voices` | multipart: `file` (5–30 s), `name`, `consent=true`, `reference_text` (optional: transcribed if empty) | the new voice, usable immediately |
+| `POST /v1/speak` | JSON: `text`, `language` (`ar`/`en`), `voice` (optional), `format` (`mp3`/`wav`), `tone` (optional: `excited`/`angry`/`calm`/`serious`/`sad`, needs `voice` and that tone's recording), `addressee` (`auto`/`male`/`female`: marks "you" endings, e.g. ايدك → ايدِك for a woman) | audio file; `X-Engine`, `X-Voice`, `X-Audio-Seconds`, `X-Processing-Ms` headers |
+| `GET /v1/voices` | – | voices of the active TTS engine; `cloned: true` marks cloned ones, `person` + `tone` group a person's tone recordings; `tones` maps tone ids to Arabic labels |
+| `POST /v1/voices` | multipart: `file` (5–30 s), `name`, `consent=true`, `reference_text` (optional: transcribed if empty), `tone` (optional: stores it as `<name>-<tone>`) | the new voice, usable immediately |
 | `DELETE /v1/voices/{id}` | – | removes a cloned voice |
 | `GET /v1/pronunciations` | – | pronunciation fixes (`source`: `base` from the repo, `local` from the page) |
 | `PUT /v1/pronunciations/{word}` | JSON: `spoken` | adds or changes a local fix; applied without restart |

@@ -55,7 +55,7 @@ def clone(client, auth, name="sara", seconds=8.0, **fields):
 def test_clone_lists_and_deletes_a_voice(cloning, auth, store):
     response = clone(cloning, auth, reference_text="أهلا أنا سارة")
     assert response.status_code == 201, response.text
-    assert response.json() == {"id": "sara", "seconds": 8.0, "reference_text": "أهلا أنا سارة"}
+    assert response.json() == {"id": "sara", "seconds": 8.0, "reference_text": "أهلا أنا سارة", "person": "sara", "tone": None}
 
     voices = cloning.get("/v1/voices", headers=auth).json()["voices"]
     assert {(v["id"], v["cloned"]) for v in voices} == {("mohamed", False), ("sara", True)}
@@ -104,3 +104,39 @@ def test_rejects_duplicate_and_silent_recordings(cloning, auth):
 def test_voices_routes_need_token(cloning):
     assert cloning.get("/v1/voices").status_code == 401
     assert cloning.delete("/v1/voices/sara").status_code == 401
+
+
+def test_tones_are_separate_recordings_of_one_person(cloning, auth, store):
+    assert clone(cloning, auth, reference_text="أهلا").status_code == 201
+    excited = clone(cloning, auth, reference_text="يا سلام!", tone="excited")
+    assert excited.status_code == 201
+    assert excited.json()["id"] == "sara-excited"
+    assert (excited.json()["person"], excited.json()["tone"]) == ("sara", "excited")
+
+    body = cloning.get("/v1/voices", headers=auth).json()
+    assert body["tones"]["excited"] == "متحمس"
+    tones = {(v["id"], v["person"], v["tone"]) for v in body["voices"] if v["cloned"]}
+    assert tones == {("sara", "sara", None), ("sara-excited", "sara", "excited")}
+
+
+def test_rejects_unknown_tone_and_tone_in_name(cloning, auth):
+    assert clone(cloning, auth, reference_text="أهلا", tone="happyish").status_code == 422
+    assert clone(cloning, auth, name="sara-angry", reference_text="أهلا").status_code == 422
+
+
+def test_speak_picks_the_recording_for_the_tone(cloning, auth, store):
+    from app.main import get_tts
+
+    clone(cloning, auth, reference_text="أهلا")
+    clone(cloning, auth, reference_text="يا سلام!", tone="excited")
+    tts = app.dependency_overrides[get_tts]()
+    spoken = []
+    tts.synthesize = lambda text, language, voice=None: (spoken.append(voice), FakeTtsEngine().synthesize(text, language))[1]
+    app.dependency_overrides[get_tts] = lambda: tts
+
+    ok = cloning.post("/v1/speak", headers=auth, json={"text": "أهلا", "voice": "sara", "tone": "excited"})
+    assert ok.status_code == 200, ok.text
+    assert spoken == ["sara-excited"]
+    missing = cloning.post("/v1/speak", headers=auth, json={"text": "أهلا", "voice": "sara", "tone": "angry"})
+    assert missing.status_code == 422
+    assert cloning.post("/v1/speak", headers=auth, json={"text": "أهلا", "tone": "excited"}).status_code == 422

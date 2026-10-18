@@ -121,6 +121,10 @@
             <button type="button" data-addressee="female" aria-pressed="false">ست</button>
           </div>
         </div>
+        <div class="field" id="speak-tone-field" hidden>
+          <span class="label" id="speak-tone-label">النبرة <bdi id="speak-tone-person"></bdi></span>
+          <div id="speak-tone" class="mode-switch tone-switch" role="radiogroup" aria-labelledby="speak-tone-label"></div>
+        </div>
         <div class="actions">
           <button id="speak-button" type="button" class="primary">اتكلم</button>
         </div>
@@ -146,11 +150,20 @@
   <section id="panel-voices" class="tab-panel" role="tabpanel" aria-labelledby="tab-voices" hidden>
     <div class="layout-split">
       <div class="panel">
-        <h2>استنسخ صوت جديد</h2>
-        <p class="panel-subtitle">من 10 لـ 30 ثانية كلام عادي، في مكان هادي، من غير موسيقى.</p>
+        <h2>سجّل صوت</h2>
+        <p class="panel-subtitle">من 10 لـ 30 ثانية، في مكان هادي، من غير موسيقى. سجّل لنفس الشخص أكتر من نبرة، والصوت اللي بيطلع بياخد إحساس التسجيل.</p>
         <div class="field">
-          <label for="clone-name">اسم الصوت (إنجليزي صغير، مثلًا sara)</label>
+          <label for="clone-name">اسم الشخص (إنجليزي صغير، مثلًا sara)</label>
           <input id="clone-name" class="ltr" autocomplete="off" pattern="[a-z0-9][a-z0-9_-]{1,31}">
+        </div>
+        <div class="field">
+          <span class="label" id="clone-tone-label">النبرة</span>
+          <div id="clone-tone" class="mode-switch tone-switch" role="radiogroup" aria-labelledby="clone-tone-label"></div>
+        </div>
+        <div class="script-card">
+          <span class="script-label">اقرا ده وانت <strong id="clone-mood">على طبيعتك</strong></span>
+          <p id="clone-script"></p>
+          <small>خلصت قبل 10 ثواني؟ كمّل كلام من عندك بنفس الإحساس.</small>
         </div>
         <div class="recorder">
           <button id="clone-record" class="record-button" type="button" aria-label="سجّل العينة"></button>
@@ -175,7 +188,7 @@
       </div>
 
       <div class="panel">
-        <h2>الأصوات المستنسخة</h2>
+        <h2>الأصوات المسجّلة</h2>
         <ul id="voice-list" class="voice-list"></ul>
         <p class="panel-subtitle" id="builtin-count"></p>
       </div>

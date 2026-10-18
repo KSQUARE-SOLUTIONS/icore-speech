@@ -231,6 +231,7 @@ body::before {
 /* ---------- Form controls ---------- */
 .field-row { display: flex; flex-wrap: wrap; gap: var(--space-md); }
 .field { display: flex; flex-direction: column; gap: var(--space-xs); flex: 1 1 160px; min-width: 0; }
+.panel > .field { flex: none; } /* the 160px basis is for side-by-side fields in .field-row */
 label, .label { font-size: var(--font-small); color: var(--color-text-muted); }
 input, select, textarea {
   width: 100%;
@@ -443,6 +444,35 @@ audio { width: 100%; }
 .mode-switch { display: inline-flex; gap: var(--space-xs); padding: var(--space-xs); border-radius: var(--radius-pill); background: var(--color-background); border: 1px solid var(--color-border); }
 .mode-switch button { border: none; background: transparent; padding: var(--space-xs) var(--space-md); }
 .mode-switch button[aria-pressed="true"] { background: var(--color-accent); color: var(--color-accent-text); }
+.tone-switch { flex-wrap: wrap; border-radius: var(--radius-md); }
+
+.script-card {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border-strong);
+  background: var(--color-accent-soft);
+}
+.script-label { font-size: var(--font-small); color: var(--color-text-muted); }
+.script-label strong { color: var(--color-accent); }
+.script-card p { margin: var(--space-xs) 0; font-size: var(--font-title); line-height: 1.8; }
+.script-card small { color: var(--color-text-muted); }
+
+.tone-chips { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-top: var(--space-xs); }
+.tone-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font: 600 var(--font-small) var(--font-body);
+}
+.tone-chip button { padding: 0 2px; border: 0; background: transparent; color: var(--color-text-muted); font-size: var(--font-small); }
+.tone-chip button:hover { color: var(--color-danger); }
+button.tone-chip.missing { border-style: dashed; background: transparent; color: var(--color-text-muted); }
+button.tone-chip.missing:hover { color: var(--color-accent); }
 
 .footer-links { margin-top: var(--space-xl); display: flex; gap: var(--space-lg); justify-content: center; font-size: var(--font-small); }
 .footer-links a { color: var(--color-text-muted); }
