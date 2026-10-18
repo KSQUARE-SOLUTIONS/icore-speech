@@ -74,3 +74,16 @@ def test_api_rejects_bad_input_and_needs_token(api, auth):
     assert client.put("/v1/pronunciations/two words", headers=auth, json={"spoken": "x"}).status_code == 422
     assert client.put("/v1/pronunciations/قهوة", headers=auth, json={"spoken": " "}).status_code == 422
     assert client.get("/v1/pronunciations").status_code == 401
+
+
+def test_phrases_are_accepted_with_spaces_normalised(store):
+    assert store.set("تسلم   ايدك", "تِسْلَم ايدك").word == "تسلم ايدك"
+
+
+def test_phrase_fixes_apply_only_in_context():
+    from app.tts.voicetut_engine import apply_phrases
+
+    normalize = apply_phrases(lambda text: text, lambda: {"تسلم ايدك": "تِسْلَم ايدك"})
+    assert normalize("الأكل جميل، تسلم إيدك يا ماما.") == "الأكل جميل، تِسْلَم ايدك يا ماما."
+    assert normalize("تسلم على خالتك") == "تسلم على خالتك"
+    assert normalize("متسلم ايدك") == "متسلم ايدك"  # never inside a longer word

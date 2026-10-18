@@ -48,6 +48,29 @@ def keep_user_diacritics(normalize):
 QAF = "\u0642"
 
 
+# Spelling variants people mix freely; a phrase written with one matches text written with another.
+_LOOSE_LETTERS = {"ا": "[اأإآ]", "أ": "[اأإآ]", "إ": "[اأإآ]", "آ": "[اأإآ]", "ة": "[ةه]", "ه": "[ةه]", "ى": "[يى]", "ي": "[يى]"}
+
+
+def _phrase_pattern(phrase: str) -> re.Pattern:
+    body = "".join(_LOOSE_LETTERS.get(char, re.escape(char)) for char in phrase).replace("\\ ", r"\s+")
+    return re.compile(rf"(?<![ء-ي]){body}(?![ء-ي])")
+
+
+def apply_phrases(normalize, get_phrases):
+    """Rewrite whole phrases before normalising, for fixes that need context: تسلم ايدك is
+    "teslam" but تسلم على is "tesallem", so the fix is keyed on the phrase, not the word.
+    Longest phrases first; a phrase only matches between non-letters, never inside a word, and
+    alef/hamza, ة/ه and ى/ي spellings are treated as the same."""
+
+    def normalize_with_phrases(text: str) -> str:
+        for phrase, spoken in sorted(get_phrases().items(), key=lambda item: -len(item[0])):
+            text = _phrase_pattern(phrase).sub(spoken, text)
+        return normalize(text)
+
+    return normalize_with_phrases
+
+
 def pronunciation_overrides(normalizer, fixes: dict[str, str]) -> dict[str, str]:
     """Words VoiceTut should receive as written rather than through its diacritics table.
 
@@ -74,6 +97,7 @@ class VoiceTutEngine:
         self._settings = settings
         self._pronunciations = PronunciationStore(settings.voicetut_overrides_file, settings.pronunciations_file)
         self._tts = None
+        self._phrases: dict[str, str] = {}
         self._load_lock = threading.Lock()
         self._run_lock = threading.Lock()
 
@@ -119,8 +143,10 @@ class VoiceTutEngine:
                 tts.model.audio_tokenizer = tokenizer
             else:
                 tts = VoiceTutTTS.from_pretrained(str(self._model_dir), device=device)
+            normalize = tts.normalizer.normalize
             if self._settings.voicetut_keep_user_diacritics:
-                tts.normalizer.normalize = keep_user_diacritics(tts.normalizer.normalize)
+                normalize = keep_user_diacritics(normalize)
+            tts.normalizer.normalize = apply_phrases(normalize, lambda: self._phrases)
             self._tts = tts
             self.reload_pronunciations()
 
@@ -129,9 +155,12 @@ class VoiceTutEngine:
         if self._tts is None:
             return
         normalizer = self._tts.normalizer
-        lexicon = pronunciation_overrides(normalizer, self._pronunciations.mapping())
+        fixes = self._pronunciations.mapping()
+        words = {key: spoken for key, spoken in fixes.items() if " " not in key}
+        lexicon = pronunciation_overrides(normalizer, words)
         with self._run_lock:
             normalizer._lexicon = lexicon  # VoiceTut's lookup table, checked before its own diacritics
+            self._phrases = {key: spoken for key, spoken in fixes.items() if " " in key}
 
     def synthesize(self, text: str, language: str, voice: str | None = None) -> Speech:
         if language not in LANGUAGE_CODES:

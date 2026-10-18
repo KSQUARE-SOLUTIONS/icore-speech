@@ -13,8 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-# VoiceTut matches runs of these letters as one word, so a key must be exactly such a run.
-ARABIC_WORD = re.compile(r"^[ء-ي]+$")
+# A key is one Arabic word (a run of these letters, as VoiceTut matches words) or a phrase of such
+# words separated by single spaces, for fixes that depend on context (تسلم ايدك vs تسلم على).
+ARABIC_WORD_OR_PHRASE = re.compile(r"^[ء-ي]+( [ء-ي]+)*$")
 MAX_SPOKEN_CHARS = 64
 
 Source = Literal["base", "local"]
@@ -62,9 +63,9 @@ class PronunciationStore:
         return {entry.word: entry.spoken for entry in self.entries()}
 
     def set(self, word: str, spoken: str) -> Pronunciation:
-        word, spoken = word.strip(), " ".join(spoken.split())
-        if not ARABIC_WORD.match(word):
-            raise PronunciationRejected("The word must be one Arabic word, letters only (no spaces or diacritics).")
+        word, spoken = " ".join(word.split()), " ".join(spoken.split())
+        if not ARABIC_WORD_OR_PHRASE.match(word):
+            raise PronunciationRejected("Write an Arabic word or phrase, letters only (no diacritics or punctuation).")
         if not spoken or len(spoken) > MAX_SPOKEN_CHARS:
             raise PronunciationRejected(f"Write how it should sound (1-{MAX_SPOKEN_CHARS} characters).")
         with self._lock:
