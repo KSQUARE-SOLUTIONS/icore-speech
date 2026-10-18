@@ -125,3 +125,10 @@ def test_speak_rejects_long_text(client, auth):
 def test_speak_rejects_blank_text_and_unknown_voice(client, auth):
     assert client.post("/v1/speak", headers=auth, json={"text": "   "}).status_code == 422
     assert client.post("/v1/speak", headers=auth, json={"text": "أهلا", "voice": "nope"}).status_code == 422
+
+
+def test_speak_marks_the_addressee(client, auth, tts):
+    client.post("/v1/speak", headers=auth, json={"text": "تسلم ايدك", "addressee": "female", "egyptian_spelling": False})
+    client.post("/v1/speak", headers=auth, json={"text": "تسلم ايدك", "egyptian_spelling": False})
+    assert tts.texts == ["تسلم ايدِك", "تسلم ايدك"]
+    assert client.post("/v1/speak", headers=auth, json={"text": "x", "addressee": "child"}).status_code == 422

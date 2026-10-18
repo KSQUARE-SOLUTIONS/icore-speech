@@ -223,12 +223,27 @@ byId("speak-language").addEventListener("change", renderVoiceGrid);
 loadVoices();
 
 // ---------------------------------------------------------------- text to speech
+// Who is being spoken to: marks "you" endings server-side (ايدك -> ايدِك for a woman).
+const ADDRESSEE_STORAGE_KEY = "icore-speech-addressee";
+let addressee = "auto";
+try { addressee = localStorage.getItem(ADDRESSEE_STORAGE_KEY) || "auto"; } catch {}
+const addresseeButtons = [...document.querySelectorAll("[data-addressee]")];
+function renderAddressee() {
+  addresseeButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.addressee === addressee)));
+}
+addresseeButtons.forEach((button) => button.addEventListener("click", () => {
+  addressee = button.dataset.addressee;
+  try { localStorage.setItem(ADDRESSEE_STORAGE_KEY, addressee); } catch {}
+  renderAddressee();
+}));
+renderAddressee();
+
 // Returns { blob, headers } for `text` in the selected voice; throws with a readable message.
 async function requestSpeech(text, format = "mp3") {
   const response = await fetch("/v1/speak", {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify({ text, language: byId("speak-language").value, voice: selectedVoice, format }),
+    body: JSON.stringify({ text, language: byId("speak-language").value, voice: selectedVoice, format, addressee }),
   });
   if (!response.ok) throw new Error(await errorMessage(response));
   return { blob: await response.blob(), headers: response.headers };

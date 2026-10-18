@@ -67,7 +67,7 @@ Flutter or web client: apps call Laravel, Laravel calls this service on the inte
 | Endpoint | Input | Output |
 | --- | --- | --- |
 | `POST /v1/transcribe` | multipart: `file`, `language` (`ar` default, `en`, `auto`), `domain` (optional, see `app/text/vocabularies/`), `timestamps` | JSON: `text`, `segments` (when asked), `language`, `audio_seconds`, `processing_ms`, `model_version` |
-| `POST /v1/speak` | JSON: `text`, `language` (`ar`/`en`), `voice` (optional), `format` (`mp3`/`wav`) | audio file; `X-Engine`, `X-Voice`, `X-Audio-Seconds`, `X-Processing-Ms` headers |
+| `POST /v1/speak` | JSON: `text`, `language` (`ar`/`en`), `voice` (optional), `format` (`mp3`/`wav`), `addressee` (`auto`/`male`/`female`: marks "you" endings, e.g. ايدك → ايدِك for a woman) | audio file; `X-Engine`, `X-Voice`, `X-Audio-Seconds`, `X-Processing-Ms` headers |
 | `GET /v1/voices` | – | voices of the active TTS engine; `cloned: true` marks cloned ones |
 | `POST /v1/voices` | multipart: `file` (5–30 s), `name`, `consent=true`, `reference_text` (optional: transcribed if empty) | the new voice, usable immediately |
 | `DELETE /v1/voices/{id}` | – | removes a cloned voice |

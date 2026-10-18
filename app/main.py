@@ -20,6 +20,7 @@ from app.pronunciations.router import router as pronunciations_router
 from app.pronunciations.store import PronunciationStore
 from app.security.auth import require_token
 from app.stt.engine import SttEngine
+from app.text.addressee import Addressee, mark_addressee
 from app.text.egyptian_spelling import egyptian_spelling
 from app.text.vocabulary import UnknownDomainError, prompt_for
 from app.tts import build_tts_engine
@@ -82,6 +83,8 @@ class SpeakRequest(BaseModel):
     language: str = "ar"
     voice: str | None = None
     format: Literal["wav", "mp3"] = "mp3"
+    # Who is being spoken to; marks second-person endings (ايدك -> ايدِك for a woman). Arabic only.
+    addressee: Addressee = "auto"
     egyptian_spelling: bool | None = None  # None = server default
     qaf_as_hamza: bool | None = None
 
@@ -160,11 +163,11 @@ def speak(
         raise HTTPException(422, "text is empty.")
     if len(text) > settings.max_text_chars:
         raise HTTPException(413, f"text is longer than {settings.max_text_chars} characters.")
-    spoken_text = text
+    spoken_text = mark_addressee(text, body.addressee) if body.language == "ar" else text
     respell = settings.tts_egyptian_spelling if body.egyptian_spelling is None else body.egyptian_spelling
     if body.language == "ar" and respell and tts.needs_egyptian_respelling:
         qaf = settings.tts_qaf_as_hamza if body.qaf_as_hamza is None else body.qaf_as_hamza
-        spoken_text = egyptian_spelling(text, qaf_as_hamza=qaf)
+        spoken_text = egyptian_spelling(spoken_text, qaf_as_hamza=qaf)
     try:
         speech = tts.synthesize(spoken_text, body.language, body.voice)
     except UnknownVoiceError as exc:
