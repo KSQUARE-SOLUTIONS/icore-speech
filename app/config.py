@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     voicetut_repo: str = "mohammedaly22/VoiceTut-TTS"
     voicetut_device: Literal["cpu", "mps", "cuda"] = "mps"
     voicetut_num_steps: int = 32
+    # How closely speech follows the text and the cloned recording (VoiceTut's default is 2.0).
+    # Listening test (Oct 2026), excited tone: 3.0 kept the tone's higher pitch and stayed clean;
+    # 4.5 and higher temperature or speed added wrong words.
+    voicetut_guidance_scale: float = 3.0
     # Pass diacritics written in the text (بحبكِ, نعلِّم) through to the model instead of stripping them.
     voicetut_keep_user_diacritics: bool = True
     # word,spoken lines that fix how VoiceTut says specific words (see the file's header).
