@@ -175,6 +175,7 @@ class VoiceTutEngine:
                 text,
                 language=LANGUAGE_CODES[language],
                 num_step=self._settings.voicetut_num_steps,
+                guidance_scale=self._settings.voicetut_guidance_scale,
                 **voice_args,
             )
         return Speech(

@@ -76,7 +76,12 @@ export class MicrophoneRecorder {
   }
 
   async start() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // The browser's call processing is on by default: automatic gain control turns the level
+    // down a second or two into speech, so the start of a take came out much louder than the
+    // rest. Voice references and training clips need the microphone as it is.
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false },
+    });
     const chunks = [];
     const stopMeter = this.onLevel ? this.#meter(stream) : () => {};
     this.recorder = new MediaRecorder(stream);
